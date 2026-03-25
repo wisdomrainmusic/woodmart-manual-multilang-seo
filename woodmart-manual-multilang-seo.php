@@ -77,7 +77,7 @@ class_exists( 'MCE\\Multilang\\Core\\Plugin' );
 
 register_activation_hook(
 	MCE_MULTILANG_SEO_FILE,
-	array( 'MCE\\Multilang\\DB\\Installer', 'run' )
+	array( 'MCE\\Multilang\\Core\\Plugin', 'activate' )
 );
 
 register_deactivation_hook(
