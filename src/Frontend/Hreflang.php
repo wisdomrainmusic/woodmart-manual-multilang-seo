@@ -50,6 +50,18 @@ class Hreflang
 
     private function buildTag(int $objectId, string $lang): string
     {
+        $post = get_post($objectId);
+
+        if (!$post) {
+            return '';
+        }
+
+        $translation = $this->repository->getTranslation($objectId, $post->post_type, $lang);
+
+        if (!$translation) {
+            return '';
+        }
+
         $url = $this->buildUrl($objectId, $lang);
 
         if ($url === '') {
@@ -101,13 +113,11 @@ class Hreflang
             return home_url('/' . $lang . '/');
         }
 
-        $slug = '';
-
-        if ($translation && !empty($translation['translated_slug'])) {
-            $slug = (string) $translation['translated_slug'];
-        } else {
-            $slug = $post->post_name;
+        if (!$translation || empty($translation['translated_slug'])) {
+            return '';
         }
+
+        $slug = (string) $translation['translated_slug'];
 
         if ($post->post_type === 'product') {
             return home_url('/' . $lang . '/product/' . $slug . '/');
