@@ -20,7 +20,7 @@ class MenuTranslations
         add_action('wp_update_nav_menu_item', [$this, 'saveFields'], 10, 3);
     }
 
-    public function renderFields(int $itemId, \WP_Post $item, int $depth, array $args): void
+    public function renderFields(int $itemId, \WP_Post $item, int $depth, $args): void
     {
         $languages = array_filter(
             LanguageManager::getSupportedLanguages(),
@@ -45,8 +45,10 @@ class MenuTranslations
             echo '</p>';
         }
 
-        wp_nonce_field('mce_menu_translations_action', 'mce_menu_translations_nonce');
-
+        if (!isset($GLOBALS['mce_menu_translations_nonce_rendered'])) {
+            wp_nonce_field('mce_menu_translations_action', 'mce_menu_translations_nonce');
+            $GLOBALS['mce_menu_translations_nonce_rendered'] = true;
+        }
         echo '</div>';
     }
 
@@ -59,6 +61,10 @@ class MenuTranslations
         $nonce = sanitize_text_field(wp_unslash($_POST['mce_menu_translations_nonce']));
 
         if (!wp_verify_nonce($nonce, 'mce_menu_translations_action')) {
+            return;
+        }
+
+        if (defined('DOING_AJAX') && DOING_AJAX) {
             return;
         }
 
