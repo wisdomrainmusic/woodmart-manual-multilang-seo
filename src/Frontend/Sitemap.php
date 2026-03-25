@@ -63,10 +63,19 @@ class Sitemap
         $requested = get_query_var(self::QUERY_VAR);
 
         if (!is_string($requested) || $requested === '') {
+            $requested = $this->detectRequestedSitemapFromUri();
+        }
+
+        if (!is_string($requested) || $requested === '') {
             return;
         }
 
+        if (ob_get_length()) {
+            ob_clean();
+        }
+
         nocache_headers();
+        status_header(200);
         header('Content-Type: application/xml; charset=' . get_bloginfo('charset'));
 
         if ($requested === 'index') {
@@ -82,6 +91,31 @@ class Sitemap
 
         echo $this->renderLanguageSitemap($requested);
         exit;
+    }
+
+    private function detectRequestedSitemapFromUri(): string
+    {
+        $requestUri = $_SERVER['REQUEST_URI'] ?? '';
+
+        if (!is_string($requestUri) || $requestUri === '') {
+            return '';
+        }
+
+        $path = wp_parse_url($requestUri, PHP_URL_PATH);
+
+        if (!is_string($path) || $path === '') {
+            return '';
+        }
+
+        if (preg_match('#/mce-multilang-sitemap\.xml$#', $path)) {
+            return 'index';
+        }
+
+        if (preg_match('#/mce-multilang-sitemap-([a-z]{2})\.xml$#', $path, $matches)) {
+            return isset($matches[1]) ? strtolower((string) $matches[1]) : '';
+        }
+
+        return '';
     }
 
     private function renderSitemapIndex(): string
