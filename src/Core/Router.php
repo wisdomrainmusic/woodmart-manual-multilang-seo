@@ -3,6 +3,7 @@
 namespace MCE\Multilang\Core;
 
 use MCE\Multilang\DB\TranslationRepository;
+use WP;
 
 class Router
 {
@@ -75,6 +76,24 @@ class Router
         }
 
         $segments = explode('/', $request);
+
+        // /de => front page
+        if (count($segments) === 1 && $segments[0] === $lang) {
+            $frontPageId = (int) get_option('page_on_front');
+
+            if ($frontPageId > 0) {
+                $frontPage = get_post($frontPageId);
+
+                if ($frontPage) {
+                    $wp->query_vars['page_id'] = $frontPageId;
+                    $wp->query_vars['pagename'] = $frontPage->post_name;
+                    $wp->query_vars['name'] = $frontPage->post_name;
+                    $wp->query_vars['error'] = '';
+                }
+            }
+
+            return;
+        }
 
         if (count($segments) < 2) {
             return;
