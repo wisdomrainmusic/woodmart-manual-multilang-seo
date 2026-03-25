@@ -62,7 +62,7 @@ class Router
             return;
         }
 
-        $lang = get_query_var(Config::LANGUAGE_QUERY_VAR);
+        $lang = $wp->query_vars[Config::LANGUAGE_QUERY_VAR] ?? '';
 
         if (!$lang || LanguageManager::isDefault($lang)) {
             return;
@@ -98,8 +98,21 @@ class Router
             );
 
             if ($row && !empty($row->object_id)) {
-                $wp->query_vars['post_type'] = 'product';
-                $wp->query_vars['p'] = (int) $row->object_id;
+                $post = get_post((int) $row->object_id);
+
+                if ($post && $post->post_type === 'product') {
+                    $wp->query_vars['post_type'] = 'product';
+                    $wp->query_vars['name'] = $post->post_name;
+                    $wp->query_vars['post_name'] = $post->post_name;
+                    $wp->query_vars['page_id'] = '';
+                    $wp->query_vars['pagename'] = '';
+                    $wp->query_vars['attachment'] = '';
+                    $wp->query_vars['attachment_id'] = '';
+                    $wp->query_vars['error'] = '';
+
+                    unset($wp->query_vars['p']);
+                    unset($wp->query_vars[Config::TRANSLATED_PATH_QUERY_VAR]);
+                }
             }
         }
     }
