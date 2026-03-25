@@ -76,7 +76,7 @@ class Router
 
         $segments = explode('/', $request);
 
-        if (count($segments) < 3) {
+        if (count($segments) < 2) {
             return;
         }
 
@@ -111,6 +111,40 @@ class Router
                     $wp->query_vars['error'] = '';
 
                     unset($wp->query_vars['p']);
+                    unset($wp->query_vars[Config::TRANSLATED_PATH_QUERY_VAR]);
+                }
+            }
+
+            return;
+        }
+
+        // /de/meine-seite
+        if ($segments[0] === $lang && !empty($segments[1])) {
+            $translatedSlug = sanitize_title($segments[1]);
+
+            global $wpdb;
+
+            $repo = new TranslationRepository();
+            $table = $repo->getTableName();
+
+            $row = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT object_id FROM {$table} WHERE translated_slug = %s AND lang_code = %s AND object_type IN ('page','post') LIMIT 1",
+                    $translatedSlug,
+                    $lang
+                )
+            );
+
+            if ($row && !empty($row->object_id)) {
+                $post = get_post((int) $row->object_id);
+
+                if ($post && in_array($post->post_type, ['page', 'post'], true)) {
+                    $wp->query_vars['page_id'] = (int) $post->ID;
+                    $wp->query_vars['pagename'] = $post->post_name;
+                    $wp->query_vars['name'] = $post->post_name;
+                    $wp->query_vars['post_type'] = $post->post_type;
+                    $wp->query_vars['error'] = '';
+
                     unset($wp->query_vars[Config::TRANSLATED_PATH_QUERY_VAR]);
                 }
             }
