@@ -2,44 +2,24 @@
 
 namespace MCE\Multilang\Core;
 
-/**
- * Static plugin configuration values.
- */
-class Config {
-	/**
-	 * Get plugin version.
-	 */
-	public static function getVersion(): string {
-		return MCE_MULTILANG_SEO_VERSION;
-	}
+class Config
+{
+    public const VERSION = '1.0.0';
+    public const DB_SCHEMA_VERSION = '1.0.0';
+    public const DB_SCHEMA_VERSION_OPTION = 'mce_multilang_schema_version';
 
-	/**
-	 * Get plugin database schema version.
-	 */
-	public static function getSchemaVersion(): string {
-		return '1.0.0';
-	}
+    public static function getDefaultLanguage(): string
+    {
+        return 'en';
+    }
 
-	/**
-	 * Get schema version option key.
-	 */
-	public static function getSchemaVersionOptionKey(): string {
-		return 'mce_multilang_seo_schema_version';
-	}
+    public static function getLanguages(): array
+    {
+        return ['en', 'de', 'it', 'fr', 'es', 'tr'];
+    }
 
-	/**
-	 * Get the default language code.
-	 */
-	public static function getDefaultLanguage(): string {
-		return 'en';
-	}
-
-	/**
-	 * Get supported language registry.
-	 *
-	 * @return string[]
-	 */
-	public static function getSupportedLanguages(): array {
-		return array( 'en', 'de', 'it', 'fr', 'es', 'tr' );
-	}
+    public static function getPluginVersion(): string
+    {
+        return self::VERSION;
+    }
 }
