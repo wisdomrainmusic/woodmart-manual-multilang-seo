@@ -2,11 +2,14 @@
 
 namespace MCE\Multilang\Core;
 
+use MCE\Multilang\DB\TranslationRepository;
+
 class Router
 {
     public function register(): void
     {
         add_action('init', [$this, 'registerRewriteRules']);
+        add_action('parse_request', [$this, 'resolveTranslatedSlug'], 1);
         add_filter('query_vars', [$this, 'registerQueryVars']);
         add_filter('request', [$this, 'mapLanguageRequest']);
         add_filter('redirect_canonical', [$this, 'maybeDisableCanonicalRedirect'], 10, 2);
@@ -51,6 +54,54 @@ class Router
         $queryVars[] = Config::TRANSLATED_PATH_QUERY_VAR;
 
         return array_values(array_unique($queryVars));
+    }
+
+    public function resolveTranslatedSlug(\WP $wp): void
+    {
+        if (is_admin()) {
+            return;
+        }
+
+        $lang = get_query_var(Config::LANGUAGE_QUERY_VAR);
+
+        if (!$lang || LanguageManager::isDefault($lang)) {
+            return;
+        }
+
+        $request = trim($wp->request ?? '', '/');
+
+        if (!$request) {
+            return;
+        }
+
+        $segments = explode('/', $request);
+
+        if (count($segments) < 3) {
+            return;
+        }
+
+        // /de/product/mein-slug
+        if ($segments[0] === $lang && $segments[1] === 'product' && !empty($segments[2])) {
+            $translatedSlug = sanitize_title($segments[2]);
+
+            global $wpdb;
+
+            $repo = new TranslationRepository();
+            $table = $repo->getTableName();
+
+            $row = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT object_id FROM {$table} WHERE translated_slug = %s AND lang_code = %s LIMIT 1",
+                    $translatedSlug,
+                    $lang
+                )
+            );
+
+            if ($row && !empty($row->object_id)) {
+                $wp->query_vars['post_type'] = 'product';
+                $wp->query_vars['p'] = (int) $row->object_id;
+            }
+        }
     }
 
     public function registerRewriteRules(): void
