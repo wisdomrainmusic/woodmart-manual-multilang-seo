@@ -70,26 +70,30 @@ class Sitemap
             return;
         }
 
-        if (ob_get_length()) {
-            ob_clean();
-        }
-
-        nocache_headers();
-        status_header(200);
-        header('Content-Type: application/xml; charset=' . get_bloginfo('charset'));
-
         if ($requested === 'index') {
-            echo $this->renderSitemapIndex();
-            exit;
+            $this->sendXmlResponse($this->renderSitemapIndex(), 200);
         }
 
         if (!LanguageManager::isSupportedLanguage($requested)) {
-            status_header(404);
-            echo $this->renderEmptyUrlset();
-            exit;
+            $this->sendXmlResponse($this->renderEmptyUrlset(), 404);
         }
 
-        echo $this->renderLanguageSitemap($requested);
+        $this->sendXmlResponse($this->renderLanguageSitemap($requested), 200);
+    }
+
+    private function sendXmlResponse(string $xml, int $statusCode = 200): void
+    {
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
+        status_header($statusCode);
+        nocache_headers();
+        header_remove('Content-Type');
+        header('Content-Type: text/xml; charset=UTF-8', true);
+        header('X-Content-Type-Options: nosniff', true);
+
+        echo $xml;
         exit;
     }
 
@@ -175,7 +179,7 @@ class Sitemap
     private function renderEmptyUrlset(): string
     {
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
-            . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>';
+            . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml"></urlset>';
     }
 
     private function collectUrlsForLanguage(string $language): array
