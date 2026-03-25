@@ -4,30 +4,28 @@ namespace MCE\Multilang\DB;
 
 use MCE\Multilang\Core\Config;
 
-/**
- * Handles plugin activation and setup.
- */
-class Installer {
-	/**
-	 * Activation entry point.
-	 */
-	public static function activate(): void {
-		self::setVersionOption();
-		self::prepareSchema();
-	}
+class Installer
+{
+    public static function run(): void
+    {
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-	/**
-	 * Persist plugin version in options table.
-	 */
-	private static function setVersionOption(): void {
-		update_option( 'mce_multilang_seo_version', Config::getVersion() );
-	}
+        $sql = Schema::getSql();
 
-	/**
-	 * Create or update schema and persist schema version.
-	 */
-	private static function prepareSchema(): void {
-		Schema::install();
-		update_option( Config::getSchemaVersionOptionKey(), Config::getSchemaVersion() );
-	}
+        dbDelta($sql);
+
+        update_option(
+            Config::DB_SCHEMA_VERSION_OPTION,
+            Config::DB_SCHEMA_VERSION
+        );
+    }
+
+    public static function maybeUpgrade(): void
+    {
+        $installedVersion = (string) get_option(Config::DB_SCHEMA_VERSION_OPTION, '');
+
+        if ($installedVersion !== Config::DB_SCHEMA_VERSION) {
+            self::run();
+        }
+    }
 }
