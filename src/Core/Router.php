@@ -123,7 +123,7 @@ class Router
 
             $row = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT object_id FROM {$table} WHERE translated_slug = %s AND lang_code = %s LIMIT 1",
+                    "SELECT object_id FROM {$table} WHERE translated_slug = %s AND lang_code = %s ORDER BY id DESC LIMIT 1",
                     $translatedSlug,
                     $lang
                 )
@@ -161,7 +161,7 @@ class Router
 
             $row = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT object_id FROM {$table} WHERE translated_slug = %s AND lang_code = %s AND object_type IN ('page','post') LIMIT 1",
+                    "SELECT object_id FROM {$table} WHERE translated_slug = %s AND lang_code = %s AND object_type IN ('page','post') ORDER BY id DESC LIMIT 1",
                     $translatedSlug,
                     $lang
                 )
