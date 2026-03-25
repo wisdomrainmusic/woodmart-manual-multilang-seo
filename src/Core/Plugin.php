@@ -3,6 +3,7 @@
 namespace MCE\Multilang\Core;
 
 use MCE\Multilang\Admin\SettingsPage;
+use MCE\Multilang\Admin\TranslationMetaBox;
 use MCE\Multilang\DB\Installer;
 use MCE\Multilang\Frontend\ContentFilter;
 
@@ -30,6 +31,9 @@ class Plugin
 
         $settingsPage = new SettingsPage();
         $settingsPage->register();
+
+        $translationMetaBox = new TranslationMetaBox();
+        $translationMetaBox->register();
 
         $router = new Router();
         $router->register();
