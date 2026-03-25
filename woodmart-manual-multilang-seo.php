@@ -48,9 +48,10 @@ if ( file_exists( $autoload_file ) ) {
 			$parts    = explode( '\\', $relative );
 			$root     = array_shift( $parts );
 			$roots    = array(
-				'Core'  => 'Core',
-				'Admin' => 'Admin',
-				'DB'    => 'DB',
+				'Core'     => 'Core',
+				'Admin'    => 'Admin',
+				'DB'       => 'DB',
+				'Frontend' => 'Frontend',
 			);
 
 			if ( empty( $root ) || ! isset( $roots[ $root ] ) ) {

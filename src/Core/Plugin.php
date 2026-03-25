@@ -4,6 +4,7 @@ namespace MCE\Multilang\Core;
 
 use MCE\Multilang\Admin\SettingsPage;
 use MCE\Multilang\DB\Installer;
+use MCE\Multilang\Frontend\ContentFilter;
 
 class Plugin
 {
@@ -32,5 +33,8 @@ class Plugin
 
         $router = new Router();
         $router->register();
+
+        $contentFilter = new ContentFilter();
+        $contentFilter->register();
     }
 }
