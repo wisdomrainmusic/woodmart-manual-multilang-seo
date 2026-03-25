@@ -86,9 +86,22 @@ class Router
 
                 if ($frontPage) {
                     $wp->query_vars['page_id'] = $frontPageId;
+                    $wp->query_vars['page'] = '';
                     $wp->query_vars['pagename'] = $frontPage->post_name;
                     $wp->query_vars['name'] = $frontPage->post_name;
+                    $wp->query_vars['post_type'] = 'page';
+                    $wp->query_vars['post_name'] = $frontPage->post_name;
+                    $wp->query_vars['attachment'] = '';
+                    $wp->query_vars['attachment_id'] = '';
                     $wp->query_vars['error'] = '';
+
+                    unset($wp->query_vars['p']);
+                    unset($wp->query_vars['category_name']);
+                    unset($wp->query_vars['tag']);
+                    unset($wp->query_vars['feed']);
+                    unset($wp->query_vars['paged']);
+                    unset($wp->query_vars['embed']);
+                    unset($wp->query_vars[Config::TRANSLATED_PATH_QUERY_VAR]);
                 }
             }
 

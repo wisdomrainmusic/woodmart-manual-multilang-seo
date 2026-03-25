@@ -27,6 +27,14 @@ class Hreflang
 
         $objectId = get_queried_object_id();
 
+        if (!$objectId && is_front_page()) {
+            $objectId = (int) get_option('page_on_front');
+        }
+
+        if (!$objectId && is_home()) {
+            $objectId = (int) get_option('page_for_posts');
+        }
+
         if (!$objectId) {
             return;
         }
