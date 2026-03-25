@@ -6,6 +6,7 @@ use MCE\Multilang\Admin\SettingsPage;
 use MCE\Multilang\Admin\TranslationMetaBox;
 use MCE\Multilang\DB\Installer;
 use MCE\Multilang\Frontend\ContentFilter;
+use MCE\Multilang\Integrations\RankMathIntegration;
 
 class Plugin
 {
@@ -40,5 +41,8 @@ class Plugin
 
         $contentFilter = new ContentFilter();
         $contentFilter->register();
+
+        $rankMathIntegration = new RankMathIntegration();
+        $rankMathIntegration->register();
     }
 }
