@@ -12,10 +12,16 @@ class Plugin
         self::boot();
     }
 
+    public static function deactivate(): void
+    {
+        // Reserved for future cleanup tasks.
+    }
+
     private static function boot(): void
     {
         add_action('admin_init', [Installer::class, 'maybeUpgrade']);
 
-        new SettingsPage();
+        $settingsPage = new SettingsPage();
+        $settingsPage->register();
     }
 }
