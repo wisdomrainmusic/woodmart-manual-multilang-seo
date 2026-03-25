@@ -124,10 +124,10 @@ class Sitemap
         $xml .= '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
 
         foreach (LanguageManager::getSupportedLanguages() as $language) {
-            $xml .= "  <sitemap>\n";
-            $xml .= '    <loc>' . esc_xml(home_url('/mce-multilang-sitemap-' . $language . '.xml')) . "</loc>\n";
-            $xml .= '    <lastmod>' . esc_xml(gmdate('c')) . "</lastmod>\n";
-            $xml .= "  </sitemap>\n";
+            $xml .= '  <sitemap>' . "\n";
+            $xml .= '    <loc>' . esc_xml(home_url('/mce-multilang-sitemap-' . $language . '.xml')) . '</loc>' . "\n";
+            $xml .= '    <lastmod>' . esc_xml(gmdate('c')) . '</lastmod>' . "\n";
+            $xml .= '  </sitemap>' . "\n";
         }
 
         $xml .= '</sitemapindex>';
@@ -143,33 +143,12 @@ class Sitemap
             return $this->renderEmptyUrlset();
         }
 
-        $allLanguages = LanguageManager::getSupportedLanguages();
-        $defaultLanguage = LanguageManager::getDefaultLanguage();
-
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
-        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">' . "\n";
+        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
 
         foreach ($urls as $entry) {
             $xml .= "  <url>\n";
             $xml .= '    <loc>' . esc_xml($entry['loc']) . "</loc>\n";
-
-            foreach ($allLanguages as $alternateLanguage) {
-                $alternateUrl = $alternateLanguage === $language
-                    ? $entry['loc']
-                    : $this->buildUrlForObject((int) $entry['object_id'], $alternateLanguage);
-
-                if ($alternateUrl === '') {
-                    continue;
-                }
-
-                $xml .= '    <xhtml:link rel="alternate" hreflang="' . esc_xml($alternateLanguage) . '" href="' . esc_xml($alternateUrl) . "\" />\n";
-            }
-
-            $defaultUrl = $this->buildUrlForObject((int) $entry['object_id'], $defaultLanguage);
-
-            if ($defaultUrl !== '') {
-                $xml .= '    <xhtml:link rel="alternate" hreflang="x-default" href="' . esc_xml($defaultUrl) . "\" />\n";
-            }
 
             if (!empty($entry['lastmod'])) {
                 $xml .= '    <lastmod>' . esc_xml($entry['lastmod']) . "</lastmod>\n";
@@ -199,7 +178,6 @@ class Sitemap
 
             if ($frontUrl !== '') {
                 $urls[] = [
-                    'object_id' => $frontPageId,
                     'loc' => $frontUrl,
                     'lastmod' => $this->getLastModifiedIso($frontPageId),
                 ];
@@ -222,6 +200,7 @@ class Sitemap
         if (!empty($query->posts)) {
             foreach ($query->posts as $objectId) {
                 $objectId = (int) $objectId;
+
                 $url = $this->buildUrlForObject($objectId, $language);
 
                 if ($url === '') {
@@ -229,7 +208,6 @@ class Sitemap
                 }
 
                 $urls[] = [
-                    'object_id' => $objectId,
                     'loc' => $url,
                     'lastmod' => $this->getLastModifiedIso($objectId),
                 ];
@@ -264,9 +242,13 @@ class Sitemap
             return '';
         }
 
-        $slug = !empty($translation['translated_slug'])
-            ? (string) $translation['translated_slug']
-            : $post->post_name;
+        $slug = '';
+
+        if (!empty($translation['translated_slug'])) {
+            $slug = (string) $translation['translated_slug'];
+        } else {
+            $slug = $post->post_name;
+        }
 
         if ($post->post_type === 'product') {
             return home_url('/' . $language . '/product/' . $slug . '/');
