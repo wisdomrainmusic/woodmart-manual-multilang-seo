@@ -87,9 +87,9 @@ class Sitemap
             ob_end_clean();
         }
 
+        header_remove('Content-Type');
         status_header($statusCode);
         nocache_headers();
-        header_remove('Content-Type');
         header('Content-Type: text/xml; charset=UTF-8', true);
         header('X-Content-Type-Options: nosniff', true);
 
