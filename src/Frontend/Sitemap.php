@@ -143,12 +143,33 @@ class Sitemap
             return $this->renderEmptyUrlset();
         }
 
+        $allLanguages = LanguageManager::getSupportedLanguages();
+        $defaultLanguage = LanguageManager::getDefaultLanguage();
+
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
-        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">' . "\n";
 
         foreach ($urls as $entry) {
             $xml .= "  <url>\n";
             $xml .= '    <loc>' . esc_xml($entry['loc']) . "</loc>\n";
+
+            foreach ($allLanguages as $alternateLanguage) {
+                $alternateUrl = $alternateLanguage === $language
+                    ? $entry['loc']
+                    : $this->buildUrlForObject($entry['object_id'], $alternateLanguage);
+
+                if ($alternateUrl === '') {
+                    continue;
+                }
+
+                $xml .= '    <xhtml:link rel="alternate" hreflang="' . esc_xml($alternateLanguage) . '" href="' . esc_xml($alternateUrl) . '" />' . "\n";
+            }
+
+            $defaultUrl = $this->buildUrlForObject($entry['object_id'], $defaultLanguage);
+
+            if ($defaultUrl !== '') {
+                $xml .= '    <xhtml:link rel="alternate" hreflang="x-default" href="' . esc_xml($defaultUrl) . '" />' . "\n";
+            }
 
             if (!empty($entry['lastmod'])) {
                 $xml .= '    <lastmod>' . esc_xml($entry['lastmod']) . "</lastmod>\n";
@@ -178,6 +199,7 @@ class Sitemap
 
             if ($frontUrl !== '') {
                 $urls[] = [
+                    'object_id' => $frontPageId,
                     'loc' => $frontUrl,
                     'lastmod' => $this->getLastModifiedIso($frontPageId),
                 ];
@@ -208,6 +230,7 @@ class Sitemap
                 }
 
                 $urls[] = [
+                    'object_id' => $objectId,
                     'loc' => $url,
                     'lastmod' => $this->getLastModifiedIso($objectId),
                 ];
@@ -255,6 +278,27 @@ class Sitemap
         }
 
         return home_url('/' . $language . '/' . $slug . '/');
+    }
+
+    private function getAlternateUrl(array $url, string $lang): ?string
+    {
+        if (empty($url['id'])) {
+            return null;
+        }
+
+        if (!isset($this->translations)) {
+            return null;
+        }
+
+        $translatedId = $this->translations->getTranslation($url['id'], $lang);
+
+        if (!$translatedId) {
+            return null;
+        }
+
+        $permalink = get_permalink($translatedId);
+
+        return is_string($permalink) ? $permalink : null;
     }
 
     private function getLastModifiedIso(int $objectId): string
