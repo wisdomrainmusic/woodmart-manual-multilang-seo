@@ -2,13 +2,14 @@
 
 namespace MCE\Multilang\Core;
 
+use MCE\Multilang\Admin\MenuTranslations;
 use MCE\Multilang\Admin\SettingsPage;
 use MCE\Multilang\Admin\TranslationMetaBox;
 use MCE\Multilang\DB\Installer;
 use MCE\Multilang\Frontend\ContentFilter;
-use MCE\Multilang\Integrations\RankMathIntegration;
 use MCE\Multilang\Frontend\Hreflang;
 use MCE\Multilang\Frontend\MenuFilter;
+use MCE\Multilang\Integrations\RankMathIntegration;
 
 class Plugin
 {
@@ -34,6 +35,9 @@ class Plugin
 
         $settingsPage = new SettingsPage();
         $settingsPage->register();
+
+        $menuTranslations = new MenuTranslations();
+        $menuTranslations->register();
 
         $translationMetaBox = new TranslationMetaBox();
         $translationMetaBox->register();

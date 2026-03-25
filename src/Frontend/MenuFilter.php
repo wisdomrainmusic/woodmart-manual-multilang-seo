@@ -3,51 +3,50 @@
 namespace MCE\Multilang\Frontend;
 
 use MCE\Multilang\Core\LanguageManager;
+use MCE\Multilang\DB\TranslationRepository;
 
 class MenuFilter
 {
-    public function register(): void
+    private TranslationRepository $repository;
+
+    public function __construct(?TranslationRepository $repository = null)
     {
-        add_filter('wp_nav_menu_objects', [$this, 'translateMenu'], 10, 2);
+        $this->repository = $repository ?? new TranslationRepository();
     }
 
-    public function translateMenu(array $items): array
+    public function register(): void
+    {
+        add_filter('wp_nav_menu_objects', [$this, 'translateMenuItems'], 10, 2);
+    }
+
+    public function translateMenuItems(array $items, $args): array
     {
         if (is_admin()) {
             return $items;
         }
 
-        $lang = LanguageManager::getCurrentLanguage();
+        $language = LanguageManager::getCurrentLanguage();
 
-        if ($lang === 'en') {
+        if (LanguageManager::isDefault($language)) {
             return $items;
         }
 
         foreach ($items as $item) {
-            $translated = $this->getTranslation($item->ID, $lang);
+            if (!is_object($item) || empty($item->ID)) {
+                continue;
+            }
 
-            if ($translated) {
-                $item->title = $translated;
+            $translation = $this->repository->getTranslation((int) $item->ID, 'nav_menu_item', $language);
+
+            if (!$translation) {
+                continue;
+            }
+
+            if (!empty($translation['translated_title'])) {
+                $item->title = (string) $translation['translated_title'];
             }
         }
 
         return $items;
-    }
-
-    private function getTranslation(int $objectId, string $lang): ?string
-    {
-        global $wpdb;
-
-        $table = $wpdb->prefix . 'translations';
-
-        $result = $wpdb->get_var(
-            $wpdb->prepare(
-                "SELECT title FROM $table WHERE object_id = %d AND lang = %s AND type = 'menu' LIMIT 1",
-                $objectId,
-                $lang
-            )
-        );
-
-        return $result ?: null;
     }
 }
