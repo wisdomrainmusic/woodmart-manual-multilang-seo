@@ -10,6 +10,7 @@ use MCE\Multilang\Frontend\ContentFilter;
 use MCE\Multilang\Frontend\Hreflang;
 use MCE\Multilang\Frontend\LanguageSwitcher;
 use MCE\Multilang\Frontend\MenuFilter;
+use MCE\Multilang\Frontend\Sitemap;
 use MCE\Multilang\Integrations\RankMathIntegration;
 
 class Plugin
@@ -18,6 +19,7 @@ class Plugin
     {
         Installer::run();
         Router::activate();
+        Sitemap::activate();
     }
 
     public static function init(): void
@@ -28,6 +30,7 @@ class Plugin
     public static function deactivate(): void
     {
         Router::deactivate();
+        Sitemap::deactivate();
     }
 
     private static function boot(): void
@@ -60,5 +63,8 @@ class Plugin
 
         $languageSwitcher = new LanguageSwitcher();
         $languageSwitcher->register();
+
+        $sitemap = new Sitemap();
+        $sitemap->register();
     }
 }
