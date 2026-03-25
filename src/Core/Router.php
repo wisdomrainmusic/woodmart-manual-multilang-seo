@@ -7,6 +7,7 @@ class Router
     public function register(): void
     {
         add_action('init', [$this, 'registerRewriteRules']);
+        add_action('template_redirect', [$this, 'disableCanonicalRedirect'], 1);
         add_filter('query_vars', [$this, 'registerQueryVars']);
         add_filter('request', [$this, 'mapLanguageRequest']);
     }
@@ -21,6 +22,19 @@ class Router
     public static function deactivate(): void
     {
         flush_rewrite_rules();
+    }
+
+    public function disableCanonicalRedirect(): void
+    {
+        if (is_admin()) {
+            return;
+        }
+
+        $language = get_query_var(Config::LANGUAGE_QUERY_VAR);
+
+        if (!empty($language)) {
+            remove_action('template_redirect', 'redirect_canonical');
+        }
     }
 
     public function registerQueryVars(array $queryVars): array
