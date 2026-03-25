@@ -8,6 +8,7 @@ use MCE\Multilang\Admin\TranslationMetaBox;
 use MCE\Multilang\DB\Installer;
 use MCE\Multilang\Frontend\ContentFilter;
 use MCE\Multilang\Frontend\Hreflang;
+use MCE\Multilang\Frontend\LanguageSwitcher;
 use MCE\Multilang\Frontend\MenuFilter;
 use MCE\Multilang\Integrations\RankMathIntegration;
 
@@ -56,5 +57,8 @@ class Plugin
 
         $menuFilter = new MenuFilter();
         $menuFilter->register();
+
+        $languageSwitcher = new LanguageSwitcher();
+        $languageSwitcher->register();
     }
 }
