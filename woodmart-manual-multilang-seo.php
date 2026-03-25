@@ -52,7 +52,7 @@ if ( file_exists( $autoload_file ) ) {
 				'Admin'    => 'Admin',
 				'DB'       => 'DB',
 				'Frontend' => 'Frontend',
-				'Integrations' => 'Integrations'
+				'Integrations' => 'Integrations',
 			);
 
 			if ( empty( $root ) || ! isset( $roots[ $root ] ) ) {
