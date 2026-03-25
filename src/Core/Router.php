@@ -7,9 +7,9 @@ class Router
     public function register(): void
     {
         add_action('init', [$this, 'registerRewriteRules']);
-        add_action('template_redirect', [$this, 'disableCanonicalRedirect'], 1);
         add_filter('query_vars', [$this, 'registerQueryVars']);
         add_filter('request', [$this, 'mapLanguageRequest']);
+        add_filter('redirect_canonical', [$this, 'maybeDisableCanonicalRedirect'], 10, 2);
     }
 
     public static function activate(): void
@@ -24,17 +24,25 @@ class Router
         flush_rewrite_rules();
     }
 
-    public function disableCanonicalRedirect(): void
+    public function maybeDisableCanonicalRedirect($redirectUrl, $requestedUrl)
     {
         if (is_admin()) {
-            return;
+            return $redirectUrl;
         }
 
         $language = get_query_var(Config::LANGUAGE_QUERY_VAR);
 
-        if (!empty($language)) {
-            remove_action('template_redirect', 'redirect_canonical');
+        if (is_string($language) && LanguageManager::isSupportedLanguage($language)) {
+            return false;
         }
+
+        $requestUri = $_SERVER['REQUEST_URI'] ?? '';
+
+        if (is_string($requestUri) && preg_match('#^/(' . Config::getLanguagePattern() . ')(/|$)#', $requestUri)) {
+            return false;
+        }
+
+        return $redirectUrl;
     }
 
     public function registerQueryVars(array $queryVars): array
