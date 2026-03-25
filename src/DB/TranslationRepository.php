@@ -4,6 +4,10 @@ namespace MCE\Multilang\DB;
 
 class TranslationRepository
 {
+    private const CACHE_GROUP = 'mce_multilang_translations';
+    private const CACHE_MISS = '__mce_multilang_translation_miss__';
+    private const CACHE_TTL = HOUR_IN_SECONDS;
+
     public function getTableName(): string
     {
         return Schema::getTranslationsTableName();
@@ -14,20 +18,61 @@ class TranslationRepository
         return Schema::getTranslationMetaTableName();
     }
 
-    public function getTranslation(int $objectId, string $objectType, string $langCode): ?array
+    private function getTranslationCacheKey(int $objectId, string $objectType, string $langCode): string
     {
-        global $wpdb;
-
-        $sql = $wpdb->prepare(
-            "SELECT * FROM {$this->getTableName()} WHERE object_id = %d AND object_type = %s AND lang_code = %s LIMIT 1",
+        return sprintf(
+            'translation:%d:%s:%s',
             $objectId,
             sanitize_key($objectType),
             sanitize_key($langCode)
         );
+    }
+
+    private function deleteTranslationCache(int $objectId, string $objectType, string $langCode): void
+    {
+        wp_cache_delete(
+            $this->getTranslationCacheKey($objectId, $objectType, $langCode),
+            self::CACHE_GROUP
+        );
+    }
+
+    private function primeTranslationCache(int $objectId, string $objectType, string $langCode, ?array $translation): void
+    {
+        wp_cache_set(
+            $this->getTranslationCacheKey($objectId, $objectType, $langCode),
+            $translation ?? self::CACHE_MISS,
+            self::CACHE_GROUP,
+            self::CACHE_TTL
+        );
+    }
+
+    public function getTranslation(int $objectId, string $objectType, string $langCode): ?array
+    {
+        global $wpdb;
+
+        $objectType = sanitize_key($objectType);
+        $langCode = sanitize_key($langCode);
+
+        $cacheKey = $this->getTranslationCacheKey($objectId, $objectType, $langCode);
+        $cached = wp_cache_get($cacheKey, self::CACHE_GROUP);
+
+        if ($cached !== false) {
+            return $cached === self::CACHE_MISS ? null : $cached;
+        }
+
+        $sql = $wpdb->prepare(
+            "SELECT * FROM {$this->getTableName()} WHERE object_id = %d AND object_type = %s AND lang_code = %s LIMIT 1",
+            $objectId,
+            $objectType,
+            $langCode
+        );
 
         $row = $wpdb->get_row($sql, ARRAY_A);
 
-        return is_array($row) ? $row : null;
+        $translation = is_array($row) ? $row : null;
+        $this->primeTranslationCache($objectId, $objectType, $langCode, $translation);
+
+        return $translation;
     }
 
     public function getTranslationById(int $id): ?array
@@ -88,12 +133,19 @@ class TranslationRepository
             return 0;
         }
 
+        $this->deleteTranslationCache(
+            (int) $insertData['object_id'],
+            (string) $insertData['object_type'],
+            (string) $insertData['lang_code']
+        );
+
         return (int) $wpdb->insert_id;
     }
 
     public function updateTranslation(int $id, array $data): bool
     {
         global $wpdb;
+        $existing = $this->getTranslationById($id);
 
         $allowed = [
             'translated_title',
@@ -143,12 +195,21 @@ class TranslationRepository
             ['%d']
         );
 
+        if ($result !== false && is_array($existing)) {
+            $this->deleteTranslationCache(
+                (int) $existing['object_id'],
+                (string) $existing['object_type'],
+                (string) $existing['lang_code']
+            );
+        }
+
         return $result !== false;
     }
 
     public function deleteTranslation(int $id): bool
     {
         global $wpdb;
+        $existing = $this->getTranslationById($id);
 
         $wpdb->delete(
             $this->getMetaTableName(),
@@ -161,6 +222,14 @@ class TranslationRepository
             ['id' => $id],
             ['%d']
         );
+
+        if ($result !== false && is_array($existing)) {
+            $this->deleteTranslationCache(
+                (int) $existing['object_id'],
+                (string) $existing['object_type'],
+                (string) $existing['lang_code']
+            );
+        }
 
         return $result !== false;
     }
