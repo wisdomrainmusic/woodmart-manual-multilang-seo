@@ -7,6 +7,12 @@ use MCE\Multilang\DB\Installer;
 
 class Plugin
 {
+    public static function activate(): void
+    {
+        Installer::run();
+        Router::activate();
+    }
+
     public static function init(): void
     {
         self::boot();
@@ -14,7 +20,7 @@ class Plugin
 
     public static function deactivate(): void
     {
-        // Reserved for future cleanup tasks.
+        Router::deactivate();
     }
 
     private static function boot(): void
@@ -23,5 +29,8 @@ class Plugin
 
         $settingsPage = new SettingsPage();
         $settingsPage->register();
+
+        $router = new Router();
+        $router->register();
     }
 }

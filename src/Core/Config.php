@@ -7,6 +7,8 @@ class Config
     public const VERSION = '1.0.0';
     public const DB_SCHEMA_VERSION = '1.0.0';
     public const DB_SCHEMA_VERSION_OPTION = 'mce_multilang_schema_version';
+    public const LANGUAGE_QUERY_VAR = 'mce_lang';
+    public const TRANSLATED_PATH_QUERY_VAR = 'mce_translated_path';
 
     public static function getDefaultLanguage(): string
     {
@@ -21,5 +23,25 @@ class Config
     public static function getPluginVersion(): string
     {
         return self::VERSION;
+    }
+
+    public static function getPrefixedLanguages(): array
+    {
+        return array_values(
+            array_filter(
+                self::getLanguages(),
+                static fn (string $language): bool => $language !== self::getDefaultLanguage()
+            )
+        );
+    }
+
+    public static function getLanguagePattern(): string
+    {
+        return implode('|', array_map('preg_quote', self::getPrefixedLanguages()));
+    }
+
+    public static function getLanguageQueryVar(): string
+    {
+        return self::LANGUAGE_QUERY_VAR;
     }
 }
