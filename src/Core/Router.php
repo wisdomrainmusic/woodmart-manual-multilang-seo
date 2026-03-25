@@ -139,13 +139,28 @@ class Router
                 $post = get_post((int) $row->object_id);
 
                 if ($post && in_array($post->post_type, ['page', 'post'], true)) {
-                    $wp->query_vars['page_id'] = (int) $post->ID;
-                    $wp->query_vars['pagename'] = $post->post_name;
-                    $wp->query_vars['name'] = $post->post_name;
+                    if ($post->post_type === 'page') {
+                        $wp->query_vars['page_id'] = (int) $post->ID;
+                        $wp->query_vars['pagename'] = $post->post_name;
+                        unset($wp->query_vars['p']);
+                    } else {
+                        $wp->query_vars['p'] = (int) $post->ID;
+                        $wp->query_vars['name'] = $post->post_name;
+                    }
+
                     $wp->query_vars['post_type'] = $post->post_type;
+                    $wp->query_vars['name'] = $post->post_name;
+                    $wp->query_vars['post_name'] = $post->post_name;
+                    $wp->query_vars['attachment'] = '';
+                    $wp->query_vars['attachment_id'] = '';
                     $wp->query_vars['error'] = '';
 
                     unset($wp->query_vars[Config::TRANSLATED_PATH_QUERY_VAR]);
+                    unset($wp->query_vars['category_name']);
+                    unset($wp->query_vars['tag']);
+                    unset($wp->query_vars['feed']);
+                    unset($wp->query_vars['paged']);
+                    unset($wp->query_vars['embed']);
                 }
             }
         }

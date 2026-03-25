@@ -25,9 +25,42 @@ class ContentFilter
         add_filter('woocommerce_product_get_short_description', [$this, 'filterWooProductShortDescription'], 20, 2);
     }
 
+    private function resolveCurrentPostId(int $postId = 0): int
+    {
+        if ($postId > 0) {
+            return $postId;
+        }
+
+        $queriedObjectId = get_queried_object_id();
+
+        if (is_numeric($queriedObjectId) && (int) $queriedObjectId > 0) {
+            return (int) $queriedObjectId;
+        }
+
+        $loopPostId = get_the_ID();
+
+        if (is_numeric($loopPostId) && (int) $loopPostId > 0) {
+            return (int) $loopPostId;
+        }
+
+        global $post;
+
+        if (is_object($post) && !empty($post->ID)) {
+            return (int) $post->ID;
+        }
+
+        return 0;
+    }
+
     public function filterTitle(string $title, int $postId = 0): string
     {
-        if (is_admin() || $postId <= 0) {
+        if (is_admin()) {
+            return $title;
+        }
+
+        $postId = $this->resolveCurrentPostId($postId);
+
+        if ($postId <= 0) {
             return $title;
         }
 
@@ -71,13 +104,13 @@ class ContentFilter
             return $content;
         }
 
-        $postId = get_the_ID();
+        $postId = $this->resolveCurrentPostId();
 
-        if (!$postId || !$this->shouldFilterPost((int) $postId)) {
+        if ($postId <= 0 || !$this->shouldFilterPost($postId)) {
             return $content;
         }
 
-        $translation = $this->getTranslationForPost((int) $postId);
+        $translation = $this->getTranslationForPost($postId);
 
         if (!$translation) {
             return $content;
@@ -100,13 +133,13 @@ class ContentFilter
             return $description;
         }
 
-        $postId = get_the_ID();
+        $postId = $this->resolveCurrentPostId();
 
-        if (!$postId) {
+        if ($postId <= 0) {
             return $description;
         }
 
-        $translation = $this->getTranslationForPost((int) $postId);
+        $translation = $this->getTranslationForPost($postId);
 
         if (!$translation) {
             return $description;
