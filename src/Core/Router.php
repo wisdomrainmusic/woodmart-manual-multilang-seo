@@ -214,7 +214,7 @@ class Router
         if ($segments[0] === $lang && $segments[1] === 'product' && !empty($segments[2])) {
             $translatedSlug = sanitize_title($segments[2]);
 
-            $objectId = $this->findTranslatedObjectId($translatedSlug, $lang);
+            $objectId = $this->findTranslatedObjectId($translatedSlug, $lang, ['product']);
 
             if ($objectId) {
                 $post = get_post($objectId);
