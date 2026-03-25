@@ -14,6 +14,20 @@ class Config {
 	}
 
 	/**
+	 * Get plugin database schema version.
+	 */
+	public static function getSchemaVersion(): string {
+		return '1.0.0';
+	}
+
+	/**
+	 * Get schema version option key.
+	 */
+	public static function getSchemaVersionOptionKey(): string {
+		return 'mce_multilang_seo_schema_version';
+	}
+
+	/**
 	 * Get the default language code.
 	 */
 	public static function getDefaultLanguage(): string {
