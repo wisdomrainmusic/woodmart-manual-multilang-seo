@@ -7,6 +7,8 @@ use MCE\Multilang\Admin\TranslationMetaBox;
 use MCE\Multilang\DB\Installer;
 use MCE\Multilang\Frontend\ContentFilter;
 use MCE\Multilang\Integrations\RankMathIntegration;
+use MCE\Multilang\Frontend\Hreflang;
+use MCE\Multilang\Frontend\MenuFilter;
 
 class Plugin
 {
@@ -44,5 +46,11 @@ class Plugin
 
         $rankMathIntegration = new RankMathIntegration();
         $rankMathIntegration->register();
+
+        $hreflang = new Hreflang();
+        $hreflang->register();
+
+        $menuFilter = new MenuFilter();
+        $menuFilter->register();
     }
 }
