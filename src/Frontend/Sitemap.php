@@ -70,30 +70,26 @@ class Sitemap
             return;
         }
 
+        if (ob_get_length()) {
+            ob_clean();
+        }
+
+        nocache_headers();
+        status_header(200);
+        header('Content-Type: application/xml; charset=' . get_bloginfo('charset'));
+
         if ($requested === 'index') {
-            $this->sendXmlResponse($this->renderSitemapIndex(), 200);
+            echo $this->renderSitemapIndex();
+            exit;
         }
 
         if (!LanguageManager::isSupportedLanguage($requested)) {
-            $this->sendXmlResponse($this->renderEmptyUrlset(), 404);
+            status_header(404);
+            echo $this->renderEmptyUrlset();
+            exit;
         }
 
-        $this->sendXmlResponse($this->renderLanguageSitemap($requested), 200);
-    }
-
-    private function sendXmlResponse(string $xml, int $statusCode = 200): void
-    {
-        while (ob_get_level() > 0) {
-            ob_end_clean();
-        }
-
-        header_remove('Content-Type');
-        status_header($statusCode);
-        nocache_headers();
-        header('Content-Type: text/xml; charset=UTF-8', true);
-        header('X-Content-Type-Options: nosniff', true);
-
-        echo $xml;
+        echo $this->renderLanguageSitemap($requested);
         exit;
     }
 
@@ -148,21 +144,11 @@ class Sitemap
         }
 
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
-        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">' . "\n";
+        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
 
         foreach ($urls as $entry) {
             $xml .= "  <url>\n";
             $xml .= '    <loc>' . esc_xml($entry['loc']) . "</loc>\n";
-
-            if (!empty($entry['alternates']) && is_array($entry['alternates'])) {
-                foreach ($entry['alternates'] as $hreflang => $href) {
-                    if (!is_string($hreflang) || $hreflang === '' || !is_string($href) || $href === '') {
-                        continue;
-                    }
-
-                    $xml .= '    <xhtml:link rel="alternate" hreflang="' . esc_attr($hreflang) . '" href="' . esc_xml($href) . '" />' . "\n";
-                }
-            }
 
             if (!empty($entry['lastmod'])) {
                 $xml .= '    <lastmod>' . esc_xml($entry['lastmod']) . "</lastmod>\n";
@@ -179,7 +165,7 @@ class Sitemap
     private function renderEmptyUrlset(): string
     {
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
-            . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml"></urlset>';
+            . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>';
     }
 
     private function collectUrlsForLanguage(string $language): array
@@ -194,7 +180,6 @@ class Sitemap
                 $urls[] = [
                     'loc' => $frontUrl,
                     'lastmod' => $this->getLastModifiedIso($frontPageId),
-                    'alternates' => $this->buildAlternatesForObject($frontPageId),
                 ];
             }
         }
@@ -225,7 +210,6 @@ class Sitemap
                 $urls[] = [
                     'loc' => $url,
                     'lastmod' => $this->getLastModifiedIso($objectId),
-                    'alternates' => $this->buildAlternatesForObject($objectId),
                 ];
             }
         }
@@ -271,29 +255,6 @@ class Sitemap
         }
 
         return home_url('/' . $language . '/' . $slug . '/');
-    }
-
-    private function buildAlternatesForObject(int $objectId): array
-    {
-        $alternates = [];
-
-        foreach (LanguageManager::getSupportedLanguages() as $lang) {
-            $url = $this->buildUrlForObject($objectId, $lang);
-
-            if ($url === '') {
-                continue;
-            }
-
-            $alternates[$lang] = $url;
-        }
-
-        $defaultUrl = $this->buildUrlForObject($objectId, LanguageManager::getDefaultLanguage());
-
-        if ($defaultUrl !== '') {
-            $alternates['x-default'] = $defaultUrl;
-        }
-
-        return $alternates;
     }
 
     private function getLastModifiedIso(int $objectId): string
