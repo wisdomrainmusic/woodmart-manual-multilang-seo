@@ -24,9 +24,10 @@ class Installer {
 	}
 
 	/**
-	 * Placeholder for future schema setup.
+	 * Create or update schema and persist schema version.
 	 */
 	private static function prepareSchema(): void {
-		// Database schema creation will be implemented in a future step.
+		Schema::install();
+		update_option( Config::getSchemaVersionOptionKey(), Config::getSchemaVersion() );
 	}
 }
