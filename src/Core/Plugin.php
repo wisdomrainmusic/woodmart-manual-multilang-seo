@@ -3,31 +3,19 @@
 namespace MCE\Multilang\Core;
 
 use MCE\Multilang\Admin\SettingsPage;
+use MCE\Multilang\DB\Installer;
 
-/**
- * Main plugin bootstrapper.
- */
-class Plugin {
-	/**
-	 * Initialize plugin services.
-	 */
-	public static function init(): void {
-		$plugin = new self();
-		$plugin->boot();
-	}
+class Plugin
+{
+    public static function init(): void
+    {
+        self::boot();
+    }
 
-	/**
-	 * Deactivation hook callback.
-	 */
-	public static function deactivate(): void {
-		// Reserved for future deactivation routines.
-	}
+    private static function boot(): void
+    {
+        add_action('admin_init', [Installer::class, 'maybeUpgrade']);
 
-	/**
-	 * Boot core features.
-	 */
-	private function boot(): void {
-		$settings_page = new SettingsPage();
-		$settings_page->register();
-	}
+        new SettingsPage();
+    }
 }
