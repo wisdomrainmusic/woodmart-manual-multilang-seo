@@ -144,11 +144,21 @@ class Sitemap
         }
 
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
-        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+        $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">' . "\n";
 
         foreach ($urls as $entry) {
             $xml .= "  <url>\n";
             $xml .= '    <loc>' . esc_xml($entry['loc']) . "</loc>\n";
+
+            if (!empty($entry['alternates']) && is_array($entry['alternates'])) {
+                foreach ($entry['alternates'] as $hreflang => $href) {
+                    if (!is_string($hreflang) || $hreflang === '' || !is_string($href) || $href === '') {
+                        continue;
+                    }
+
+                    $xml .= '    <xhtml:link rel="alternate" hreflang="' . esc_attr($hreflang) . '" href="' . esc_xml($href) . '" />' . "\n";
+                }
+            }
 
             if (!empty($entry['lastmod'])) {
                 $xml .= '    <lastmod>' . esc_xml($entry['lastmod']) . "</lastmod>\n";
@@ -180,6 +190,7 @@ class Sitemap
                 $urls[] = [
                     'loc' => $frontUrl,
                     'lastmod' => $this->getLastModifiedIso($frontPageId),
+                    'alternates' => $this->buildAlternatesForObject($frontPageId),
                 ];
             }
         }
@@ -210,6 +221,7 @@ class Sitemap
                 $urls[] = [
                     'loc' => $url,
                     'lastmod' => $this->getLastModifiedIso($objectId),
+                    'alternates' => $this->buildAlternatesForObject($objectId),
                 ];
             }
         }
@@ -255,6 +267,29 @@ class Sitemap
         }
 
         return home_url('/' . $language . '/' . $slug . '/');
+    }
+
+    private function buildAlternatesForObject(int $objectId): array
+    {
+        $alternates = [];
+
+        foreach (LanguageManager::getSupportedLanguages() as $lang) {
+            $url = $this->buildUrlForObject($objectId, $lang);
+
+            if ($url === '') {
+                continue;
+            }
+
+            $alternates[$lang] = $url;
+        }
+
+        $defaultUrl = $this->buildUrlForObject($objectId, LanguageManager::getDefaultLanguage());
+
+        if ($defaultUrl !== '') {
+            $alternates['x-default'] = $defaultUrl;
+        }
+
+        return $alternates;
     }
 
     private function getLastModifiedIso(int $objectId): string
