@@ -35,7 +35,45 @@ $autoload_file = MCE_MULTILANG_SEO_PATH . 'vendor/autoload.php';
 
 if ( file_exists( $autoload_file ) ) {
 	require_once $autoload_file;
+} else {
+	spl_autoload_register(
+		static function ( string $class ): void {
+			$namespace = 'MCE\\Multilang\\';
+
+			if ( 0 !== strpos( $class, $namespace ) ) {
+				return;
+			}
+
+			$relative = substr( $class, strlen( $namespace ) );
+			$parts    = explode( '\\', $relative );
+			$root     = array_shift( $parts );
+			$roots    = array(
+				'Core'  => 'Core',
+				'Admin' => 'Admin',
+				'DB'    => 'DB',
+			);
+
+			if ( empty( $root ) || ! isset( $roots[ $root ] ) ) {
+				return;
+			}
+
+			$path = MCE_MULTILANG_SEO_PATH . 'src/' . $roots[ $root ] . '/';
+
+			if ( ! empty( $parts ) ) {
+				$path .= implode( '/', $parts ) . '.php';
+			} else {
+				$path .= $root . '.php';
+			}
+
+			if ( file_exists( $path ) ) {
+				require_once $path;
+			}
+		}
+	);
 }
+
+class_exists( 'MCE\\Multilang\\DB\\Installer' );
+class_exists( 'MCE\\Multilang\\Core\\Plugin' );
 
 register_activation_hook(
 	MCE_MULTILANG_SEO_FILE,
