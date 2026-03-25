@@ -18,6 +18,11 @@ class RankMathIntegration
     {
         add_filter('rank_math/frontend/title', [$this, 'filterTitle']);
         add_filter('rank_math/frontend/description', [$this, 'filterDescription']);
+
+        // 🔥 SEO FIXES
+        add_filter('rank_math/opengraph/url', [$this, 'filterOpenGraphUrl']);
+        add_filter('rank_math/opengraph/facebook/locale', [$this, 'filterOpenGraphLocale']);
+        add_filter('language_attributes', [$this, 'filterLanguageAttributes']);
     }
 
     public function filterTitle(string $title): string
@@ -52,6 +57,102 @@ class RankMathIntegration
         return !empty($translation['seo_description'])
             ? (string) $translation['seo_description']
             : $description;
+    }
+
+    // 🔥 OG URL FIX
+    public function filterOpenGraphUrl(string $url): string
+    {
+        if (is_admin()) {
+            return $url;
+        }
+
+        $currentUrl = $this->getCurrentRequestUrl();
+
+        return $currentUrl !== '' ? $currentUrl : $url;
+    }
+
+    // 🔥 OG LOCALE FIX (Facebook format: de_DE)
+    public function filterOpenGraphLocale(string $locale): string
+    {
+        if (is_admin()) {
+            return $locale;
+        }
+
+        return $this->getCurrentOpenGraphLocale();
+    }
+
+    // 🔥 HTML LANG FIX (HTML standard: de-DE)
+    public function filterLanguageAttributes(string $output): string
+    {
+        if (is_admin()) {
+            return $output;
+        }
+
+        $locale = $this->getCurrentHtmlLocale();
+
+        if ($locale === '') {
+            return $output;
+        }
+
+        if (strpos($output, 'lang=') !== false) {
+            return (string) preg_replace(
+                '/lang=("|\')[^"\']*("|\')/i',
+                'lang="' . esc_attr($locale) . '"',
+                $output,
+                1
+            );
+        }
+
+        return trim($output . ' lang="' . esc_attr($locale) . '"');
+    }
+
+    private function getCurrentHtmlLocale(): string
+    {
+        $lang = LanguageManager::getCurrentLanguage();
+
+        $map = [
+            'en' => 'en-US',
+            'de' => 'de-DE',
+            'it' => 'it-IT',
+            'fr' => 'fr-FR',
+            'es' => 'es-ES',
+            'tr' => 'tr-TR',
+        ];
+
+        return $map[$lang] ?? 'en-US';
+    }
+
+    private function getCurrentOpenGraphLocale(): string
+    {
+        $lang = LanguageManager::getCurrentLanguage();
+
+        $map = [
+            'en' => 'en_US',
+            'de' => 'de_DE',
+            'it' => 'it_IT',
+            'fr' => 'fr_FR',
+            'es' => 'es_ES',
+            'tr' => 'tr_TR',
+        ];
+
+        return $map[$lang] ?? 'en_US';
+    }
+
+    private function getCurrentRequestUrl(): string
+    {
+        global $wp;
+
+        if (!is_object($wp)) {
+            return '';
+        }
+
+        $request = isset($wp->request) ? trim((string) $wp->request, '/') : '';
+
+        if ($request === '') {
+            return home_url('/');
+        }
+
+        return home_url('/' . user_trailingslashit($request));
     }
 
     private function getCurrentTranslation(): ?array
