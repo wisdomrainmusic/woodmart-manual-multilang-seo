@@ -64,11 +64,18 @@ class MenuFilter
         }
 
         foreach ($items as $item) {
-            if (!is_object($item) || empty($item->object_id) || empty($item->type)) {
+            if (!is_object($item) || empty($item->type)) {
                 continue;
             }
 
-            if ($item->type !== 'post_type') {
+            if ($item->type === 'custom' || $item->type === 'post_type_archive') {
+                if (!empty($item->url) && is_string($item->url)) {
+                    $item->url = $this->localizeInternalUrl($item->url, $language);
+                }
+                continue;
+            }
+
+            if ($item->type !== 'post_type' || empty($item->object_id)) {
                 continue;
             }
 
@@ -109,5 +116,81 @@ class MenuFilter
         }
 
         return $items;
+    }
+
+    private function localizeInternalUrl(string $url, string $language): string
+    {
+        $url = trim($url);
+
+        if ($url === '') {
+            return $url;
+        }
+
+        $lowerUrl = strtolower($url);
+
+        if (
+            str_starts_with($lowerUrl, '#') ||
+            str_starts_with($lowerUrl, 'mailto:') ||
+            str_starts_with($lowerUrl, 'tel:') ||
+            str_starts_with($lowerUrl, 'javascript:')
+        ) {
+            return $url;
+        }
+
+        $parts = wp_parse_url($url);
+
+        if (!is_array($parts)) {
+            return $url;
+        }
+
+        $homeParts = wp_parse_url(home_url('/'));
+
+        if (!is_array($homeParts)) {
+            return $url;
+        }
+
+        $homeHost = strtolower((string) ($homeParts['host'] ?? ''));
+        $urlHost  = strtolower((string) ($parts['host'] ?? ''));
+
+        if ($urlHost !== '' && $homeHost !== '' && $urlHost !== $homeHost) {
+            return $url;
+        }
+
+        $path = (string) ($parts['path'] ?? '');
+
+        if ($path === '' && !str_starts_with($url, '/')) {
+            return $url;
+        }
+
+        $homePath = trim((string) ($homeParts['path'] ?? ''), '/');
+        $path     = '/' . ltrim($path, '/');
+        $relativePath = ltrim($path, '/');
+
+        if ($homePath !== '') {
+            if ($relativePath === $homePath) {
+                $relativePath = '';
+            } elseif (str_starts_with($relativePath, $homePath . '/')) {
+                $relativePath = substr($relativePath, strlen($homePath) + 1);
+            }
+        }
+
+        $relativePath = LanguageManager::stripLanguagePrefix($relativePath);
+        $relativePath = trim($relativePath, '/');
+
+        if ($relativePath === '') {
+            $localizedUrl = home_url('/' . $language . '/');
+        } else {
+            $localizedUrl = home_url('/' . user_trailingslashit($language . '/' . $relativePath));
+        }
+
+        if (isset($parts['query']) && $parts['query'] !== '') {
+            $localizedUrl .= '?' . $parts['query'];
+        }
+
+        if (isset($parts['fragment']) && $parts['fragment'] !== '') {
+            $localizedUrl .= '#' . $parts['fragment'];
+        }
+
+        return $localizedUrl;
     }
 }
