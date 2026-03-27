@@ -8,6 +8,7 @@ use MCE\Multilang\DB\TranslationRepository;
 class ContentFilter
 {
     private TranslationRepository $repository;
+    private const SETTINGS_OPTION_KEY = 'mce_multilang_settings';
 
     public function __construct(?TranslationRepository $repository = null)
     {
@@ -108,6 +109,12 @@ class ContentFilter
 
         if ($postId <= 0 || !$this->shouldFilterPost($postId)) {
             return $content;
+        }
+
+        $footerOverride = $this->getFooterOverrideForPost($postId);
+
+        if ($footerOverride !== null) {
+            return $this->renderTranslatableMarkup($footerOverride);
         }
 
         $translation = $this->getTranslationForPost($postId);
@@ -212,6 +219,53 @@ class ContentFilter
         return $markup;
     }
 
+    private function getFooterOverrideForPost(int $postId): ?string
+    {
+        $language = LanguageManager::getCurrentLanguage();
+
+        if (LanguageManager::isDefault($language)) {
+            return null;
+        }
+
+        $postType = get_post_type($postId);
+
+        if ($postType !== 'cms_block') {
+            return null;
+        }
+
+        $settings = get_option(self::SETTINGS_OPTION_KEY, []);
+
+        if (!is_array($settings)) {
+            return null;
+        }
+
+        $footerBlockId = isset($settings['footer_block_id']) ? (int) $settings['footer_block_id'] : 0;
+
+        if ($footerBlockId <= 0 || $footerBlockId !== $postId) {
+            return null;
+        }
+
+        $footerHtml = $settings['footer_html'] ?? [];
+
+        if (!is_array($footerHtml)) {
+            return null;
+        }
+
+        $value = $footerHtml[$language] ?? '';
+
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        if ($value === '') {
+            return null;
+        }
+
+        return $value;
+    }
+
     private function shouldFilterPost(int $postId): bool
     {
         $language = LanguageManager::getCurrentLanguage();
@@ -222,7 +276,7 @@ class ContentFilter
 
         $postType = get_post_type($postId);
 
-        return in_array($postType, ['page', 'post', 'product'], true);
+        return in_array($postType, ['page', 'post', 'product', 'cms_block'], true);
     }
 
     private function getTranslationForPost(int $postId): ?array
