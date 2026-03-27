@@ -8,7 +8,7 @@ use MCE\Multilang\DB\TranslationRepository;
 class TranslationMetaBox
 {
     private const NONCE_ACTION = 'mce_multilang_save_translations';
-    private const NONCE_NAME = 'mce_multilang_translations_nonce';
+    private const NONCE_NAME   = 'mce_multilang_translations_nonce';
     private const REST_META_KEY = '_mce_multilang_payload';
 
     private TranslationRepository $repository;
@@ -37,14 +37,14 @@ class TranslationMetaBox
     {
         foreach ($this->getSupportedPostTypes() as $postType) {
             register_post_meta($postType, self::REST_META_KEY, [
-                'single'            => true,
-                'type'              => 'string',
-                'show_in_rest'      => true,
-                'default'           => '',
-                'sanitize_callback' => static function ($value): string {
-                    return is_string($value) ? wp_unslash($value) : '';
-                },
-                'auth_callback'     => static function (): bool {
+                'single'       => true,
+                'type'         => 'string',
+                'show_in_rest' => [
+                    'schema' => [
+                        'type' => 'string',
+                    ],
+                ],
+                'auth_callback' => function () {
                     return current_user_can('edit_posts');
                 },
             ]);
@@ -102,7 +102,7 @@ class TranslationMetaBox
                 'translated_content' => $translation['translated_content'] ?? '',
                 'seo_title'          => $translation['seo_title'] ?? '',
                 'seo_description'    => $translation['seo_description'] ?? '',
-                'html_block_ref'     => $this->getTranslationMetaValue($translation, 'html_block_ref'),
+                'html_block_ref'     => $translation['html_block_ref'] ?? '',
                 'custom_html'        => $translation['custom_html'] ?? '',
             ];
 
@@ -122,18 +122,17 @@ class TranslationMetaBox
             $firstPanel = false;
         }
 
-        echo '<input type="hidden" id="mce-multilang-payload" name="' . esc_attr(self::REST_META_KEY) . '" value="' . esc_attr(wp_json_encode($payloadForJs)) . '" />';
+        echo '<input type="hidden" id="mce-multilang-payload" value="' . esc_attr(wp_json_encode($payloadForJs)) . '" />';
         echo '</div>';
 
         ?>
         <script>
-        document.addEventListener('DOMContentLoaded', function () {
+        wp.domReady(function () {
             const wrapper = document.querySelector('.mce-multilang-wrapper');
-            const hiddenPayload = document.getElementById('mce-multilang-payload');
             const tabs = document.querySelectorAll('.mce-lang-tab');
             const panels = document.querySelectorAll('.mce-lang-panel');
 
-            if (!wrapper || !hiddenPayload) {
+            if (!wrapper) {
                 return;
             }
 
@@ -165,28 +164,35 @@ class TranslationMetaBox
                 const payload = collectPayload();
                 const json = JSON.stringify(payload);
 
-                hiddenPayload.value = json;
-
                 if (
                     window.wp &&
                     wp.data &&
-                    wp.data.dispatch &&
-                    wp.data.select &&
-                    wp.data.dispatch('core/editor')
+                    wp.data.dispatch
                 ) {
                     const editor = wp.data.select('core/editor');
-                    const currentMeta = (editor && editor.getEditedPostAttribute('meta')) || {};
+                    const currentMeta = editor.getEditedPostAttribute('meta') || {};
 
                     wp.data.dispatch('core/editor').editPost({
-                        meta: Object.assign({}, currentMeta, {
-                            '<?php echo esc_js(self::REST_META_KEY); ?>': json
-                        })
+                        meta: {
+                            ...currentMeta,
+                            '_mce_multilang_payload': json
+                        }
                     });
                 }
             }
 
             wrapper.addEventListener('input', syncPayload);
             wrapper.addEventListener('change', syncPayload);
+
+            // 🔥 SAVE sırasında garanti sync
+            wp.data.subscribe(function () {
+                const isSaving = wp.data.select('core/editor').isSavingPost();
+                const isAutosaving = wp.data.select('core/editor').isAutosavingPost();
+
+                if (isSaving && !isAutosaving) {
+                    syncPayload();
+                }
+            });
 
             tabs.forEach(function (tab) {
                 tab.addEventListener('click', function () {
@@ -222,9 +228,7 @@ class TranslationMetaBox
 
     public function saveTranslations(int $postId): void
     {
-        $requestData = $this->getRequestData();
-
-        if (!$this->canSave($postId, $requestData)) {
+        if (!$this->canSave($postId, $_POST)) {
             return;
         }
 
@@ -234,7 +238,7 @@ class TranslationMetaBox
             return;
         }
 
-        $rawData = $this->extractRawData($requestData);
+        $rawData = $this->extractRawData($_POST);
         if (empty($rawData) || !is_array($rawData)) {
             return;
         }
@@ -293,26 +297,16 @@ class TranslationMetaBox
             return $requestData['mce_multilang'];
         }
 
-        $jsonPayload = null;
-
-        if (isset($requestData[self::REST_META_KEY]) && is_string($requestData[self::REST_META_KEY])) {
-            $jsonPayload = $requestData[self::REST_META_KEY];
-        } elseif (
-            isset($requestData['meta']) &&
-            is_array($requestData['meta']) &&
+        // REST META'dan al
+        if (
             isset($requestData['meta'][self::REST_META_KEY]) &&
             is_string($requestData['meta'][self::REST_META_KEY])
         ) {
-            $jsonPayload = $requestData['meta'][self::REST_META_KEY];
+            $decoded = json_decode(wp_unslash($requestData['meta'][self::REST_META_KEY]), true);
+            return is_array($decoded) ? $decoded : null;
         }
 
-        if (!is_string($jsonPayload) || trim($jsonPayload) === '') {
-            return null;
-        }
-
-        $decoded = json_decode(wp_unslash($jsonPayload), true);
-
-        return is_array($decoded) ? $decoded : null;
+        return null;
     }
 
     private function deleteExistingTranslationIfNeeded(?array $existing): void
