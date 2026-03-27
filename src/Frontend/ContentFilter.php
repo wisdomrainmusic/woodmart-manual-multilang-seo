@@ -14,14 +14,6 @@ class ContentFilter
         $this->repository = $repository ?? new TranslationRepository();
     }
 
-    private function getSupportedTranslatablePostTypes(): array
-    {
-        return [
-            'page', 'post', 'product',
-            'cms_block', 'html_block', 'woodmart_html_block',
-        ];
-    }
-
     public function register(): void
     {
         add_filter('the_title', [$this, 'filterTitle'], 20, 2);
@@ -108,24 +100,13 @@ class ContentFilter
 
     public function filterContent(string $content): string
     {
-        if (is_admin()) {
+        if (is_admin() || !is_singular()) {
             return $content;
         }
 
         $postId = $this->resolveCurrentPostId();
 
-        if ($postId <= 0) {
-            return $content;
-        }
-
-        $postType = get_post_type($postId);
-        $isWoodmartBlock = in_array($postType, ['cms_block', 'html_block', 'woodmart_html_block'], true);
-
-        if (!$isWoodmartBlock && !is_singular()) {
-            return $content;
-        }
-
-        if (!$this->shouldFilterPost($postId)) {
+        if ($postId <= 0 || !$this->shouldFilterPost($postId)) {
             return $content;
         }
 
@@ -133,12 +114,6 @@ class ContentFilter
 
         if (!$translation) {
             return $content;
-        }
-
-        $htmlBlockMarkup = $this->getWoodmartHtmlBlockMarkup($translation);
-
-        if ($htmlBlockMarkup !== '') {
-            return $htmlBlockMarkup;
         }
 
         if (!empty($translation['custom_html'])) {
@@ -191,12 +166,6 @@ class ContentFilter
             return $description;
         }
 
-        $htmlBlockMarkup = $this->getWoodmartHtmlBlockMarkup($translation);
-
-        if ($htmlBlockMarkup !== '') {
-            return $htmlBlockMarkup;
-        }
-
         if (!empty($translation['custom_html'])) {
             return $this->renderTranslatableMarkup((string) $translation['custom_html']);
         }
@@ -229,8 +198,8 @@ class ContentFilter
 
     private function renderTranslatableMarkup(string $markup): string
     {
-        if ($markup === '') {
-            return '';
+        if ($markup == '') {
+            return $markup;
         }
 
         if (function_exists('do_blocks')) {
@@ -243,112 +212,6 @@ class ContentFilter
         return $markup;
     }
 
-    private function getWoodmartHtmlBlockMarkup(array $translation): string
-    {
-        if (empty($translation['id'])) {
-            return '';
-        }
-
-        $blockRef = $this->repository->getTranslationMeta((int) $translation['id'], 'html_block_ref');
-
-        if (!is_string($blockRef) || trim($blockRef) === '') {
-            return '';
-        }
-
-        $parsedBlock = $this->normalizeWoodmartBlockReference(trim($blockRef));
-
-        if (empty($parsedBlock['id']) && empty($parsedBlock['slug'])) {
-            return '';
-        }
-
-        if (!empty($parsedBlock['id'])) {
-            return $this->renderTranslatableMarkup('[html_block id="' . (int) $parsedBlock['id'] . '"]');
-        }
-
-        $blockPost = $this->resolveWoodmartHtmlBlockBySlug((string) $parsedBlock['slug']);
-
-        if (!$blockPost instanceof \WP_Post) {
-            return '';
-        }
-
-        return $this->renderTranslatableMarkup('[html_block id="' . (int) $blockPost->ID . '"]');
-    }
-
-    private function normalizeWoodmartBlockReference(string $blockRef): array
-    {
-        $blockRef = trim($blockRef);
-
-        if ($blockRef === '') {
-            return ['id' => 0, 'slug' => ''];
-        }
-
-        if (ctype_digit($blockRef)) {
-            return ['id' => (int) $blockRef, 'slug' => ''];
-        }
-
-        if (preg_match('/\[(?:html_block|woodmart_html_block)\s+[^\]]*id=["\']?(\d+)["\']?[^\]]*\]/i', $blockRef, $matches)) {
-            return ['id' => (int) $matches[1], 'slug' => ''];
-        }
-
-        if (preg_match('/\[(?:html_block|woodmart_html_block)\s+[^\]]*slug=["\']?([^"\']+)["\']?[^\]]*\]/i', $blockRef, $matches)) {
-            return ['id' => 0, 'slug' => sanitize_title($matches[1])];
-        }
-
-        return ['id' => 0, 'slug' => sanitize_title($blockRef)];
-    }
-
-    private function resolveWoodmartHtmlBlockBySlug(string $slug): ?\WP_Post
-    {
-        if ($slug === '') {
-            return null;
-        }
-
-        $postTypes = [
-            'cms_block',
-            'html_block',
-            'woodmart_html_block',
-        ];
-
-        foreach ($postTypes as $postType) {
-            $post = get_page_by_path($slug, OBJECT, $postType);
-
-            if ($post instanceof \WP_Post) {
-                return $post;
-            }
-        }
-
-        return null;
-    }
-
-    private function resolveWoodmartHtmlBlock(string $blockRef): ?\WP_Post
-    {
-        $parsedBlock = $this->normalizeWoodmartBlockReference($blockRef);
-
-        $postTypes = [
-            'cms_block',
-            'html_block',
-            'woodmart_html_block',
-        ];
-
-        if (!empty($parsedBlock['id'])) {
-            $post = get_post((int) $parsedBlock['id']);
-
-            if ($post instanceof \WP_Post && in_array($post->post_type, $postTypes, true)) {
-                return $post;
-            }
-        }
-
-        if (!empty($parsedBlock['slug'])) {
-            $post = $this->resolveWoodmartHtmlBlockBySlug((string) $parsedBlock['slug']);
-
-            if ($post instanceof \WP_Post) {
-                return $post;
-            }
-        }
-
-        return null;
-    }
-
     private function shouldFilterPost(int $postId): bool
     {
         $language = LanguageManager::getCurrentLanguage();
@@ -359,7 +222,7 @@ class ContentFilter
 
         $postType = get_post_type($postId);
 
-        return in_array($postType, $this->getSupportedTranslatablePostTypes(), true);
+        return in_array($postType, ['page', 'post', 'product'], true);
     }
 
     private function getTranslationForPost(int $postId): ?array
