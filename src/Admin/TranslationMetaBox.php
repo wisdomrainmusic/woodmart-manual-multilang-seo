@@ -9,6 +9,7 @@ class TranslationMetaBox
 {
     private const NONCE_ACTION = 'mce_multilang_save_translations';
     private const NONCE_NAME = 'mce_multilang_translations_nonce';
+    private const REST_META_KEY = '_mce_multilang_payload';
 
     private TranslationRepository $repository;
 
@@ -19,6 +20,7 @@ class TranslationMetaBox
 
     public function register(): void
     {
+        add_action('init', [$this, 'registerRestMeta']);
         add_action('add_meta_boxes', [$this, 'registerMetaBox']);
         add_action('save_post', [$this, 'saveTranslations']);
     }
@@ -29,6 +31,24 @@ class TranslationMetaBox
             'page', 'post', 'product',
             'cms_block', 'html_block', 'woodmart_html_block',
         ];
+    }
+
+    public function registerRestMeta(): void
+    {
+        foreach ($this->getSupportedPostTypes() as $postType) {
+            register_post_meta($postType, self::REST_META_KEY, [
+                'single'            => true,
+                'type'              => 'string',
+                'show_in_rest'      => true,
+                'default'           => '',
+                'sanitize_callback' => static function ($value): string {
+                    return is_string($value) ? wp_unslash($value) : '';
+                },
+                'auth_callback'     => static function (): bool {
+                    return current_user_can('edit_posts');
+                },
+            ]);
+        }
     }
 
     public function registerMetaBox(): void
@@ -54,6 +74,8 @@ class TranslationMetaBox
             static fn (string $language): bool => !LanguageManager::isDefault($language)
         );
 
+        $payloadForJs = [];
+
         echo '<div class="mce-multilang-wrapper">';
         echo '<p><strong>Manual multilingual fields for this content.</strong></p>';
 
@@ -73,6 +95,16 @@ class TranslationMetaBox
         foreach ($languages as $language) {
             $translation = $this->repository->getTranslation((int) $post->ID, $post->post_type, $language);
             $display = $firstPanel ? 'block' : 'none';
+            $payloadForJs[$language] = [
+                'translated_title'   => $translation['translated_title'] ?? '',
+                'translated_slug'    => $translation['translated_slug'] ?? '',
+                'translated_excerpt' => $translation['translated_excerpt'] ?? '',
+                'translated_content' => $translation['translated_content'] ?? '',
+                'seo_title'          => $translation['seo_title'] ?? '',
+                'seo_description'    => $translation['seo_description'] ?? '',
+                'html_block_ref'     => $this->getTranslationMetaValue($translation, 'html_block_ref'),
+                'custom_html'        => $translation['custom_html'] ?? '',
+            ];
 
             echo '<div class="mce-lang-panel" data-lang-panel="' . esc_attr($language) . '" style="display:' . esc_attr($display) . '; border:1px solid #ddd; padding:16px; margin-bottom:16px; background:#fff;">';
             echo '<h3 style="margin-top:0;">' . esc_html(strtoupper($language)) . '</h3>';
@@ -90,13 +122,71 @@ class TranslationMetaBox
             $firstPanel = false;
         }
 
+        echo '<input type="hidden" id="mce-multilang-payload" name="' . esc_attr(self::REST_META_KEY) . '" value="' . esc_attr(wp_json_encode($payloadForJs)) . '" />';
         echo '</div>';
 
         ?>
         <script>
         document.addEventListener('DOMContentLoaded', function () {
+            const wrapper = document.querySelector('.mce-multilang-wrapper');
+            const hiddenPayload = document.getElementById('mce-multilang-payload');
             const tabs = document.querySelectorAll('.mce-lang-tab');
             const panels = document.querySelectorAll('.mce-lang-panel');
+
+            if (!wrapper || !hiddenPayload) {
+                return;
+            }
+
+            function collectPayload() {
+                const payload = {};
+                const fields = wrapper.querySelectorAll('input[name^="mce_multilang["], textarea[name^="mce_multilang["]');
+
+                fields.forEach(function (field) {
+                    const match = field.name.match(/^mce_multilang\[([^\]]+)\]\[([^\]]+)\]$/);
+
+                    if (!match) {
+                        return;
+                    }
+
+                    const lang = match[1];
+                    const key = match[2];
+
+                    if (!payload[lang]) {
+                        payload[lang] = {};
+                    }
+
+                    payload[lang][key] = field.value || '';
+                });
+
+                return payload;
+            }
+
+            function syncPayload() {
+                const payload = collectPayload();
+                const json = JSON.stringify(payload);
+
+                hiddenPayload.value = json;
+
+                if (
+                    window.wp &&
+                    wp.data &&
+                    wp.data.dispatch &&
+                    wp.data.select &&
+                    wp.data.dispatch('core/editor')
+                ) {
+                    const editor = wp.data.select('core/editor');
+                    const currentMeta = (editor && editor.getEditedPostAttribute('meta')) || {};
+
+                    wp.data.dispatch('core/editor').editPost({
+                        meta: Object.assign({}, currentMeta, {
+                            '<?php echo esc_js(self::REST_META_KEY); ?>': json
+                        })
+                    });
+                }
+            }
+
+            wrapper.addEventListener('input', syncPayload);
+            wrapper.addEventListener('change', syncPayload);
 
             tabs.forEach(function (tab) {
                 tab.addEventListener('click', function () {
@@ -123,6 +213,8 @@ class TranslationMetaBox
                     }
                 });
             });
+
+            syncPayload();
         });
         </script>
         <?php
@@ -142,8 +234,7 @@ class TranslationMetaBox
             return;
         }
 
-        $rawData = $requestData['mce_multilang'] ?? null;
-
+        $rawData = $this->extractRawData($requestData);
         if (empty($rawData) || !is_array($rawData)) {
             return;
         }
@@ -160,11 +251,12 @@ class TranslationMetaBox
 
             $data = $this->collectLanguageData($values);
 
+            $existing = $this->repository->getTranslation($postId, $postType, $language);
+
             if (!$this->hasAnyValue($data)) {
+                $this->deleteExistingTranslationIfNeeded($existing);
                 continue;
             }
-
-            $existing = $this->repository->getTranslation($postId, $postType, $language);
 
             $payload = [
                 'object_id'          => $postId,
@@ -193,6 +285,46 @@ class TranslationMetaBox
                 $this->saveTranslationMetaValue($translationId, 'html_block_ref', $data['html_block_ref']);
             }
         }
+    }
+
+    private function extractRawData(array $requestData): ?array
+    {
+        if (isset($requestData['mce_multilang']) && is_array($requestData['mce_multilang'])) {
+            return $requestData['mce_multilang'];
+        }
+
+        $jsonPayload = null;
+
+        if (isset($requestData[self::REST_META_KEY]) && is_string($requestData[self::REST_META_KEY])) {
+            $jsonPayload = $requestData[self::REST_META_KEY];
+        } elseif (
+            isset($requestData['meta']) &&
+            is_array($requestData['meta']) &&
+            isset($requestData['meta'][self::REST_META_KEY]) &&
+            is_string($requestData['meta'][self::REST_META_KEY])
+        ) {
+            $jsonPayload = $requestData['meta'][self::REST_META_KEY];
+        }
+
+        if (!is_string($jsonPayload) || trim($jsonPayload) === '') {
+            return null;
+        }
+
+        $decoded = json_decode(wp_unslash($jsonPayload), true);
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    private function deleteExistingTranslationIfNeeded(?array $existing): void
+    {
+        if (!$existing || empty($existing['id'])) {
+            return;
+        }
+
+        $translationId = (int) $existing['id'];
+
+        $this->repository->deleteTranslationMeta($translationId, 'html_block_ref');
+        $this->repository->deleteTranslation($translationId);
     }
 
     private function canSave(int $postId, array $requestData = []): bool
