@@ -36,6 +36,7 @@ class Plugin
     private static function boot(): void
     {
         add_action('admin_init', [Installer::class, 'maybeUpgrade']);
+        LanguageManager::register();
 
         $settingsPage = new SettingsPage();
         $settingsPage->register();
