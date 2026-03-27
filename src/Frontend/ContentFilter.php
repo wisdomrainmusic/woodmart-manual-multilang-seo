@@ -9,7 +9,6 @@ class ContentFilter
 {
     private TranslationRepository $repository;
     private const SETTINGS_OPTION_KEY = 'mce_multilang_settings';
-    private bool $footerBufferStarted = false;
 
     public function __construct(?TranslationRepository $repository = null)
     {
@@ -21,8 +20,8 @@ class ContentFilter
         add_filter('the_title', [$this, 'filterTitle'], 20, 2);
         add_filter('get_the_excerpt', [$this, 'filterExcerpt'], 20, 2);
         add_filter('the_content', [$this, 'filterContent'], 20);
-        add_action('template_redirect', [$this, 'maybeStartFooterOutputBuffer'], 0);
-        add_action('shutdown', [$this, 'maybeEndFooterOutputBuffer'], 0);
+        add_action('wp_head', [$this, 'maybeHideDefaultFooter'], 999);
+        add_action('wp_footer', [$this, 'renderTranslatedFooter'], 9999);
 
         add_filter('woocommerce_short_description', [$this, 'filterWooShortDescription'], 20);
         add_filter('woocommerce_product_get_description', [$this, 'filterWooProductDescription'], 20, 2);
@@ -216,7 +215,7 @@ class ContentFilter
         return $markup;
     }
 
-    public function maybeStartFooterOutputBuffer(): void
+    public function maybeHideDefaultFooter(): void
     {
         if (is_admin() || wp_doing_ajax() || (defined('REST_REQUEST') && REST_REQUEST)) {
             return;
@@ -234,73 +233,28 @@ class ContentFilter
             return;
         }
 
-        if ($this->footerBufferStarted) {
-            return;
-        }
-
-        $this->footerBufferStarted = true;
-
-        ob_start([$this, 'replaceFooterMarkupInBuffer']);
+        echo '<style id="mce-translated-footer-hide-default">footer.wd-footer.footer-container{display:none !important;}</style>';
     }
 
-    public function maybeEndFooterOutputBuffer(): void
+    public function renderTranslatedFooter(): void
     {
-        if (!$this->footerBufferStarted) {
+        if (is_admin() || wp_doing_ajax() || (defined('REST_REQUEST') && REST_REQUEST)) {
             return;
-        }
-
-        if (ob_get_level() > 0) {
-            @ob_end_flush();
-        }
-
-        $this->footerBufferStarted = false;
-    }
-
-    public function replaceFooterMarkupInBuffer(string $html): string
-    {
-        if ($html === '') {
-            return $html;
         }
 
         $language = LanguageManager::getCurrentLanguage();
 
         if (LanguageManager::isDefault($language)) {
-            return $html;
+            return;
         }
 
         $replacementFooter = $this->getRenderedFooterBlockForLanguage($language);
 
         if ($replacementFooter === null) {
-            return $html;
+            return;
         }
 
-        $replacementFooter = $this->renderTranslatableMarkup($replacementFooter);
-
-        /**
-         * Primary target based on the DOM structure seen on the live site:
-         * <footer class="mce-footer"> ... </footer>
-         */
-        $pattern = '#<footer\b[^>]*class=(["\'])[^"\']*\bmce-footer\b[^"\']*\1[^>]*>.*?</footer>#is';
-
-        $result = preg_replace($pattern, $replacementFooter, $html, 1, $count);
-
-        if (is_string($result) && $count > 0) {
-            return $result;
-        }
-
-        /**
-         * Fallback: replace the entire main footer container if needed.
-         */
-        $fallbackPattern = '#<div\b[^>]*class=(["\'])[^"\']*\bmain-footer\b[^"\']*\bwd-entry-content\b[^"\']*\1[^>]*>.*?</div>\s*</div>\s*</footer>#is';
-        $fallbackReplacement = '<div class="container main-footer wd-entry-content">' . $replacementFooter . '</div></footer>';
-
-        $fallbackResult = preg_replace($fallbackPattern, $fallbackReplacement, $html, 1, $fallbackCount);
-
-        if (is_string($fallbackResult) && $fallbackCount > 0) {
-            return $fallbackResult;
-        }
-
-        return $html;
+        echo '<div id="mce-translated-footer">' . $replacementFooter . '</div>';
     }
 
     private function getRenderedFooterBlockForLanguage(string $language): ?string
@@ -333,7 +287,7 @@ class ContentFilter
 
         $value = trim($value);
 
-        return $value === '' ? null : $value;
+        return $value === '' ? null : $this->renderTranslatableMarkup($value);
     }
 
     private function shouldFilterPost(int $postId): bool
