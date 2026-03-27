@@ -130,7 +130,9 @@ class TranslationMetaBox
 
     public function saveTranslations(int $postId): void
     {
-        if (!$this->canSave($postId)) {
+        $requestData = $this->getRequestData();
+
+        if (!$this->canSave($postId, $requestData)) {
             return;
         }
 
@@ -140,20 +142,7 @@ class TranslationMetaBox
             return;
         }
 
-        $rawData = $_POST['mce_multilang'] ?? null;
-
-        // Gutenberg / REST fallback.
-        if (!$rawData) {
-            $input = file_get_contents('php://input');
-
-            if ($input) {
-                $json = json_decode($input, true);
-
-                if (isset($json['meta']['mce_multilang'])) {
-                    $rawData = $json['meta']['mce_multilang'];
-                }
-            }
-        }
+        $rawData = $requestData['mce_multilang'] ?? null;
 
         if (empty($rawData) || !is_array($rawData)) {
             return;
@@ -206,17 +195,9 @@ class TranslationMetaBox
         }
     }
 
-    private function canSave(int $postId): bool
+    private function canSave(int $postId, array $requestData = []): bool
     {
         if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
-            return false;
-        }
-
-        if (!isset($_POST[self::NONCE_NAME])) {
-            return false;
-        }
-
-        if (!wp_verify_nonce(sanitize_text_field(wp_unslash($_POST[self::NONCE_NAME])), self::NONCE_ACTION)) {
             return false;
         }
 
@@ -224,7 +205,59 @@ class TranslationMetaBox
             return false;
         }
 
-        return true;
+        $nonce = '';
+
+        if (isset($_POST[self::NONCE_NAME]) && is_string($_POST[self::NONCE_NAME])) {
+            $nonce = sanitize_text_field(wp_unslash($_POST[self::NONCE_NAME]));
+        } elseif (isset($requestData[self::NONCE_NAME]) && is_string($requestData[self::NONCE_NAME])) {
+            $nonce = sanitize_text_field(wp_unslash($requestData[self::NONCE_NAME]));
+        }
+
+        // Classic / metabox submit.
+        if ($nonce !== '') {
+            return wp_verify_nonce($nonce, self::NONCE_ACTION);
+        }
+
+        // Gutenberg / REST fallback for logged-in editors.
+        if ((defined('REST_REQUEST') && REST_REQUEST) || wp_is_json_request()) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function getRequestData(): array
+    {
+        if (!empty($_POST) && is_array($_POST)) {
+            return $_POST;
+        }
+
+        $input = file_get_contents('php://input');
+
+        if (!is_string($input) || trim($input) === '') {
+            return [];
+        }
+
+        $json = json_decode($input, true);
+
+        if (is_array($json)) {
+            if (isset($json['mce_multilang']) && is_array($json['mce_multilang'])) {
+                return $json;
+            }
+
+            if (isset($json['meta']) && is_array($json['meta'])) {
+                return $json['meta'];
+            }
+        }
+
+        $parsed = [];
+        parse_str($input, $parsed);
+
+        if (is_array($parsed) && !empty($parsed)) {
+            return $parsed;
+        }
+
+        return [];
     }
 
     private function collectLanguageData(array $languageData): array
