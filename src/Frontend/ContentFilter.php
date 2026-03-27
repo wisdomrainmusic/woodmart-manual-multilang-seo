@@ -228,7 +228,7 @@ class ContentFilter
             return;
         }
 
-        $footerHtml = $this->getConfiguredFooterHtmlForLanguage($language);
+        $footerHtml = $this->getRenderedFooterBlockForLanguage($language);
 
         if ($footerHtml === null) {
             return;
@@ -268,7 +268,7 @@ class ContentFilter
             return $html;
         }
 
-        $replacementFooter = $this->getConfiguredFooterHtmlForLanguage($language);
+        $replacementFooter = $this->getRenderedFooterBlockForLanguage($language);
 
         if ($replacementFooter === null) {
             return $html;
@@ -303,18 +303,7 @@ class ContentFilter
         return $html;
     }
 
-    private function getConfiguredFooterBlockId(): int
-    {
-        $settings = get_option(self::SETTINGS_OPTION_KEY, []);
-
-        if (!is_array($settings)) {
-            return 0;
-        }
-
-        return isset($settings['footer_block_id']) ? (int) $settings['footer_block_id'] : 0;
-    }
-
-    private function getConfiguredFooterHtmlForLanguage(string $language): ?string
+    private function getRenderedFooterBlockForLanguage(string $language): ?string
     {
         $settings = get_option(self::SETTINGS_OPTION_KEY, []);
 
@@ -322,17 +311,25 @@ class ContentFilter
             return null;
         }
 
-        $footerHtml = $settings['footer_html'] ?? [];
+        $blockIds = $settings['footer_block_ids'] ?? [];
 
-        if (!is_array($footerHtml)) {
+        if (!is_array($blockIds)) {
             return null;
         }
 
-        $value = $footerHtml[$language] ?? '';
+        $blockId = isset($blockIds[$language]) ? (int) $blockIds[$language] : 0;
 
-        if (!is_string($value)) {
+        if ($blockId <= 0) {
             return null;
         }
+
+        $post = get_post($blockId);
+
+        if (!$post || $post->post_type !== 'cms_block') {
+            return null;
+        }
+
+        $value = (string) $post->post_content;
 
         $value = trim($value);
 
