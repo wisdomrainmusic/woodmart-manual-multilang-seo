@@ -14,6 +14,14 @@ class ContentFilter
         $this->repository = $repository ?? new TranslationRepository();
     }
 
+    private function getSupportedTranslatablePostTypes(): array
+    {
+        return [
+            'page', 'post', 'product',
+            'cms_block', 'html_block', 'woodmart_html_block',
+        ];
+    }
+
     public function register(): void
     {
         add_filter('the_title', [$this, 'filterTitle'], 20, 2);
@@ -100,13 +108,24 @@ class ContentFilter
 
     public function filterContent(string $content): string
     {
-        if (is_admin() || !is_singular()) {
+        if (is_admin()) {
             return $content;
         }
 
         $postId = $this->resolveCurrentPostId();
 
-        if ($postId <= 0 || !$this->shouldFilterPost($postId)) {
+        if ($postId <= 0) {
+            return $content;
+        }
+
+        $postType = get_post_type($postId);
+        $isWoodmartBlock = in_array($postType, ['cms_block', 'html_block', 'woodmart_html_block'], true);
+
+        if (!$isWoodmartBlock && !is_singular()) {
+            return $content;
+        }
+
+        if (!$this->shouldFilterPost($postId)) {
             return $content;
         }
 
@@ -340,7 +359,7 @@ class ContentFilter
 
         $postType = get_post_type($postId);
 
-        return in_array($postType, ['page', 'post', 'product'], true);
+        return in_array($postType, $this->getSupportedTranslatablePostTypes(), true);
     }
 
     private function getTranslationForPost(int $postId): ?array
