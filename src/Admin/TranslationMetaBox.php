@@ -23,6 +23,15 @@ class TranslationMetaBox
         add_action('init', [$this, 'registerRestMeta']);
         add_action('add_meta_boxes', [$this, 'registerMetaBox']);
         add_action('save_post', [$this, 'saveTranslations']);
+
+        foreach ($this->getSupportedPostTypes() as $postType) {
+            add_action(
+                'rest_after_insert_' . $postType,
+                [$this, 'saveTranslationsFromRest'],
+                10,
+                3
+            );
+        }
     }
 
     private function getSupportedPostTypes(): array
@@ -220,6 +229,33 @@ class TranslationMetaBox
         <?php
     }
 
+    public function saveTranslationsFromRest($post, $request, bool $creating): void
+    {
+        if (!$post instanceof \WP_Post) {
+            return;
+        }
+
+        if (!in_array($post->post_type, $this->getSupportedPostTypes(), true)) {
+            return;
+        }
+
+        if (!current_user_can('edit_post', (int) $post->ID)) {
+            return;
+        }
+
+        if (!$request instanceof \WP_REST_Request) {
+            return;
+        }
+
+        $requestData = $request->get_json_params();
+
+        if (!is_array($requestData) || empty($requestData)) {
+            $requestData = $request->get_params();
+        }
+
+        $this->persistTranslations((int) $post->ID, (string) $post->post_type, $requestData);
+    }
+
     public function saveTranslations(int $postId): void
     {
         $requestData = $this->getRequestData();
@@ -234,6 +270,17 @@ class TranslationMetaBox
             return;
         }
 
+        // Gutenberg / REST save işlemi ayrıca rest_after_insert_* ile ele alınıyor.
+        // Burada sadece klasik / metabox submit hattını çalıştırıyoruz.
+        if ((defined('REST_REQUEST') && REST_REQUEST) || wp_is_json_request()) {
+            return;
+        }
+
+        $this->persistTranslations($postId, $postType, $requestData);
+    }
+
+    private function persistTranslations(int $postId, string $postType, array $requestData): void
+    {
         $rawData = $this->extractRawData($requestData);
         if (empty($rawData) || !is_array($rawData)) {
             return;
@@ -294,18 +341,20 @@ class TranslationMetaBox
         }
 
         if (
-            isset($requestData[self::REST_META_KEY]) &&
-            is_string($requestData[self::REST_META_KEY])
-        ) {
-            $decoded = json_decode(wp_unslash($requestData[self::REST_META_KEY]), true);
-            return is_array($decoded) ? $decoded : null;
-        }
-
-        if (
+            isset($requestData['meta']) &&
+            is_array($requestData['meta']) &&
             isset($requestData['meta'][self::REST_META_KEY]) &&
             is_string($requestData['meta'][self::REST_META_KEY])
         ) {
             $decoded = json_decode(wp_unslash($requestData['meta'][self::REST_META_KEY]), true);
+            return is_array($decoded) ? $decoded : null;
+        }
+
+        if (
+            isset($requestData[self::REST_META_KEY]) &&
+            is_string($requestData[self::REST_META_KEY])
+        ) {
+            $decoded = json_decode(wp_unslash($requestData[self::REST_META_KEY]), true);
             return is_array($decoded) ? $decoded : null;
         }
 
