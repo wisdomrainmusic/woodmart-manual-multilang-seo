@@ -101,17 +101,6 @@ class LanguageManager
 
     private static function detectLanguageFromRequest(): ?string
     {
-        $queryVar = Config::getLanguageQueryVar();
-        $requestedLanguage = $_GET[$queryVar] ?? '';
-
-        if (is_string($requestedLanguage)) {
-            $requestedLanguage = sanitize_key(wp_unslash($requestedLanguage));
-
-            if (self::isSupportedLanguage($requestedLanguage)) {
-                return $requestedLanguage;
-            }
-        }
-
         $requestUri = $_SERVER['REQUEST_URI'] ?? '';
 
         if (!is_string($requestUri) || $requestUri === '') {
