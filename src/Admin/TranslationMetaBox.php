@@ -23,9 +23,17 @@ class TranslationMetaBox
         add_action('save_post', [$this, 'saveTranslations']);
     }
 
+    private function getSupportedPostTypes(): array
+    {
+        return [
+            'page', 'post', 'product',
+            'cms_block', 'html_block', 'woodmart_html_block',
+        ];
+    }
+
     public function registerMetaBox(): void
     {
-        foreach (['page', 'post', 'product'] as $postType) {
+        foreach ($this->getSupportedPostTypes() as $postType) {
             add_meta_box(
                 'mce-multilang-translations',
                 __('MCE Translations', 'woodmart-manual-multilang-seo'),
@@ -128,7 +136,7 @@ class TranslationMetaBox
 
         $postType = get_post_type($postId);
 
-        if (!in_array($postType, ['page', 'post', 'product'], true)) {
+        if (!in_array($postType, $this->getSupportedPostTypes(), true)) {
             return;
         }
 
