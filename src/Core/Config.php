@@ -9,6 +9,8 @@ class Config
     public const DB_SCHEMA_VERSION_OPTION = 'mce_multilang_schema_version';
     public const LANGUAGE_QUERY_VAR = 'mce_lang';
     public const TRANSLATED_PATH_QUERY_VAR = 'mce_translated_path';
+    public const LANGUAGE_COOKIE_NAME = 'mce_selected_lang';
+    public const LANGUAGE_COOKIE_TTL = 2592000; // 30 days
 
     public static function getDefaultLanguage(): string
     {
@@ -23,6 +25,16 @@ class Config
     public static function getPluginVersion(): string
     {
         return self::VERSION;
+    }
+
+    public static function getLanguageCookieName(): string
+    {
+        return self::LANGUAGE_COOKIE_NAME;
+    }
+
+    public static function getLanguageCookieTtl(): int
+    {
+        return self::LANGUAGE_COOKIE_TTL;
     }
 
     public static function getPrefixedLanguages(): array

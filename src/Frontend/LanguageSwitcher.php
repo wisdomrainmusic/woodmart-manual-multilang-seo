@@ -2,6 +2,7 @@
 
 namespace MCE\Multilang\Frontend;
 
+use MCE\Multilang\Core\Config;
 use MCE\Multilang\Core\LanguageManager;
 use MCE\Multilang\DB\TranslationRepository;
 
@@ -23,16 +24,19 @@ class LanguageSwitcher
     {
         $currentLanguage = LanguageManager::getCurrentLanguage();
         $languages = LanguageManager::getSupportedLanguages();
+        $cookieName = esc_js(Config::getLanguageCookieName());
+        $cookieTtl = (int) Config::getLanguageCookieTtl();
 
         $output  = '<div class="mce-lang-switcher" style="position:relative; display:inline-block;">';
-        $output .= '<select onchange="if(this.value){window.location.href=this.value;}" style="padding:8px 12px; min-width:90px;">';
+        $output .= '<select onchange="if(this.value){var lang=this.options[this.selectedIndex].getAttribute(\'data-lang\')||\'\';if(lang){document.cookie=\'' . $cookieName . '=\' + encodeURIComponent(lang) + \';path=/;max-age=' . $cookieTtl . ';SameSite=Lax\';}window.location.href=this.value;}" style="padding:8px 12px; min-width:90px;">';
 
         foreach ($languages as $language) {
             $url = $this->buildLanguageUrl($language);
 
             $output .= sprintf(
-                '<option value="%s" %s>%s</option>',
+                '<option value="%s" data-lang="%s" %s>%s</option>',
                 esc_url($url),
+                esc_attr($language),
                 selected($currentLanguage, $language, false),
                 esc_html(strtoupper($language))
             );
