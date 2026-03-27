@@ -3,6 +3,7 @@
 namespace MCE\Multilang\Frontend;
 
 use MCE\Multilang\Core\LanguageManager;
+use MCE\Multilang\Core\LocalizedUrlBuilder;
 use MCE\Multilang\DB\TranslationRepository;
 use WP_Query;
 
@@ -11,10 +12,12 @@ class Sitemap
     private const QUERY_VAR = 'mce_ml_sitemap';
 
     private TranslationRepository $repository;
+    private LocalizedUrlBuilder $urlBuilder;
 
     public function __construct(?TranslationRepository $repository = null)
     {
         $this->repository = $repository ?? new TranslationRepository();
+        $this->urlBuilder = new LocalizedUrlBuilder($this->repository);
     }
 
     public function register(): void
@@ -219,42 +222,7 @@ class Sitemap
 
     private function buildUrlForObject(int $objectId, string $language): string
     {
-        $post = get_post($objectId);
-
-        if (!$post || !in_array($post->post_type, ['page', 'post', 'product'], true)) {
-            return '';
-        }
-
-        if ((int) get_option('page_on_front') === $objectId) {
-            return $language === LanguageManager::getDefaultLanguage()
-                ? home_url('/')
-                : home_url('/' . $language . '/');
-        }
-
-        if ($language === LanguageManager::getDefaultLanguage()) {
-            $permalink = get_permalink($objectId);
-            return is_string($permalink) ? $permalink : '';
-        }
-
-        $translation = $this->repository->getTranslation($objectId, $post->post_type, $language);
-
-        if (!$translation) {
-            return '';
-        }
-
-        $slug = '';
-
-        if (!empty($translation['translated_slug'])) {
-            $slug = (string) $translation['translated_slug'];
-        } else {
-            $slug = $post->post_name;
-        }
-
-        if ($post->post_type === 'product') {
-            return home_url('/' . $language . '/product/' . $slug . '/');
-        }
-
-        return home_url('/' . $language . '/' . $slug . '/');
+        return $this->urlBuilder->buildObjectUrl($objectId, $language, true);
     }
 
     private function getLastModifiedIso(int $objectId): string

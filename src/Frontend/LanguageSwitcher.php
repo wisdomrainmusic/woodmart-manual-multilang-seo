@@ -4,15 +4,18 @@ namespace MCE\Multilang\Frontend;
 
 use MCE\Multilang\Core\Config;
 use MCE\Multilang\Core\LanguageManager;
+use MCE\Multilang\Core\LocalizedUrlBuilder;
 use MCE\Multilang\DB\TranslationRepository;
 
 class LanguageSwitcher
 {
     private TranslationRepository $repository;
+    private LocalizedUrlBuilder $urlBuilder;
 
     public function __construct(?TranslationRepository $repository = null)
     {
         $this->repository = $repository ?? new TranslationRepository();
+        $this->urlBuilder = new LocalizedUrlBuilder($this->repository);
     }
 
     public function register(): void
@@ -57,42 +60,15 @@ class LanguageSwitcher
         }
 
         if (!$objectId) {
-            return $language === LanguageManager::getDefaultLanguage()
-                ? home_url('/')
-                : home_url('/' . $language . '/');
+            return LanguageManager::isDefault($language) ? home_url('/') : home_url('/' . $language . '/');
         }
 
-        if ((int) get_option('page_on_front') === $objectId) {
-            return $language === LanguageManager::getDefaultLanguage()
-                ? home_url('/')
-                : home_url('/' . $language . '/');
+        $url = $this->urlBuilder->buildObjectUrl($objectId, $language, false);
+
+        if ($url !== '') {
+            return $url;
         }
 
-        $post = get_post($objectId);
-
-        if (!$post) {
-            return $language === LanguageManager::getDefaultLanguage()
-                ? home_url('/')
-                : home_url('/' . $language . '/');
-        }
-
-        if ($language === LanguageManager::getDefaultLanguage()) {
-            return get_permalink($objectId);
-        }
-
-        $translation = $this->repository->getTranslation($objectId, $post->post_type, $language);
-        $slug = '';
-
-        if ($translation && !empty($translation['translated_slug'])) {
-            $slug = (string) $translation['translated_slug'];
-        } else {
-            $slug = $post->post_name;
-        }
-
-        if ($post->post_type === 'product') {
-            return home_url('/' . $language . '/product/' . $slug . '/');
-        }
-
-        return home_url('/' . $language . '/' . $slug . '/');
+        return LanguageManager::isDefault($language) ? home_url('/') : home_url('/' . $language . '/');
     }
 }

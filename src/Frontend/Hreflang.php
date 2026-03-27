@@ -3,15 +3,18 @@
 namespace MCE\Multilang\Frontend;
 
 use MCE\Multilang\Core\LanguageManager;
+use MCE\Multilang\Core\LocalizedUrlBuilder;
 use MCE\Multilang\DB\TranslationRepository;
 
 class Hreflang
 {
     private TranslationRepository $repository;
+    private LocalizedUrlBuilder $urlBuilder;
 
     public function __construct(?TranslationRepository $repository = null)
     {
         $this->repository = $repository ?? new TranslationRepository();
+        $this->urlBuilder = new LocalizedUrlBuilder($this->repository);
     }
 
     public function register(): void
@@ -56,12 +59,6 @@ class Hreflang
             return '';
         }
 
-        $translation = $this->repository->getTranslation($objectId, $post->post_type, $lang);
-
-        if (!$translation) {
-            return '';
-        }
-
         $url = $this->buildUrl($objectId, $lang);
 
         if ($url === '') {
@@ -91,38 +88,6 @@ class Hreflang
 
     private function buildUrl(int $objectId, string $lang): string
     {
-        $post = get_post($objectId);
-
-        if (!$post) {
-            return '';
-        }
-
-        $defaultPermalink = get_permalink($objectId);
-
-        if (!$defaultPermalink) {
-            return '';
-        }
-
-        if ($lang === LanguageManager::getDefaultLanguage()) {
-            return $defaultPermalink;
-        }
-
-        $translation = $this->repository->getTranslation($objectId, $post->post_type, $lang);
-
-        if ((int) get_option('page_on_front') === $objectId) {
-            return home_url('/' . $lang . '/');
-        }
-
-        if (!$translation || empty($translation['translated_slug'])) {
-            return '';
-        }
-
-        $slug = (string) $translation['translated_slug'];
-
-        if ($post->post_type === 'product') {
-            return home_url('/' . $lang . '/product/' . $slug . '/');
-        }
-
-        return home_url('/' . $lang . '/' . $slug . '/');
+        return $this->urlBuilder->buildObjectUrl($objectId, $lang, true);
     }
 }
