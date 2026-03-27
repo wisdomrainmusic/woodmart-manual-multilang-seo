@@ -9,7 +9,7 @@ class ContentFilter
 {
     private TranslationRepository $repository;
     private const SETTINGS_OPTION_KEY = 'mce_multilang_settings';
-    private bool $isReplacingFooterHtmlBlock = false;
+    private bool $footerBufferStarted = false;
 
     public function __construct(?TranslationRepository $repository = null)
     {
@@ -21,7 +21,8 @@ class ContentFilter
         add_filter('the_title', [$this, 'filterTitle'], 20, 2);
         add_filter('get_the_excerpt', [$this, 'filterExcerpt'], 20, 2);
         add_filter('the_content', [$this, 'filterContent'], 20);
-        add_filter('pre_do_shortcode_tag', [$this, 'interceptHtmlBlockShortcode'], 10, 4);
+        add_action('template_redirect', [$this, 'maybeStartFooterOutputBuffer'], 0);
+        add_action('shutdown', [$this, 'maybeEndFooterOutputBuffer'], 0);
 
         add_filter('woocommerce_short_description', [$this, 'filterWooShortDescription'], 20);
         add_filter('woocommerce_product_get_description', [$this, 'filterWooProductDescription'], 20, 2);
@@ -215,116 +216,91 @@ class ContentFilter
         return $markup;
     }
 
-    /**
-     * Intercept Woodmart html_block shortcode output and replace it with the
-     * translated footer HTML when the configured footer block is requested.
-     *
-     * @param string|false $return
-     * @param string       $tag
-     * @param array        $attr
-     * @param array        $m
-     * @return string|false
-     */
-    public function interceptHtmlBlockShortcode($return, string $tag, array $attr, array $m)
+    public function maybeStartFooterOutputBuffer(): void
     {
-        if (is_admin()) {
-            return $return;
+        if (is_admin() || wp_doing_ajax() || (defined('REST_REQUEST') && REST_REQUEST)) {
+            return;
         }
 
-        if ($tag !== 'html_block') {
-            return $return;
-        }
-
-        if ($this->isReplacingFooterHtmlBlock) {
-            return $return;
-        }
-
-        $footerOverride = $this->getFooterOverrideForShortcodeAttrs($attr);
-
-        if ($footerOverride === null) {
-            return $return;
-        }
-
-        $this->isReplacingFooterHtmlBlock = true;
-
-        try {
-            return $this->renderTranslatableMarkup($footerOverride);
-        } finally {
-            $this->isReplacingFooterHtmlBlock = false;
-        }
-    }
-
-    /**
-     * @param array<string, mixed> $attr
-     */
-    private function getFooterOverrideForShortcodeAttrs(array $attr): ?string
-    {
         $language = LanguageManager::getCurrentLanguage();
 
         if (LanguageManager::isDefault($language)) {
-            return null;
+            return;
         }
 
-        $shortcodeBlockId = isset($attr['id']) ? (int) $attr['id'] : 0;
+        $footerHtml = $this->getConfiguredFooterHtmlForLanguage($language);
 
-        if ($shortcodeBlockId <= 0) {
-            return null;
+        if ($footerHtml === null) {
+            return;
         }
 
-        $settingsBlockId = $this->getConfiguredFooterBlockId();
-
-        if ($settingsBlockId <= 0 || $settingsBlockId !== $shortcodeBlockId) {
-            return null;
+        if ($this->footerBufferStarted) {
+            return;
         }
 
-        return $this->getConfiguredFooterHtmlForLanguage($language);
+        $this->footerBufferStarted = true;
+
+        ob_start([$this, 'replaceFooterMarkupInBuffer']);
     }
 
-    private function getFooterOverrideForPost(int $postId): ?string
+    public function maybeEndFooterOutputBuffer(): void
     {
+        if (!$this->footerBufferStarted) {
+            return;
+        }
+
+        if (ob_get_level() > 0) {
+            @ob_end_flush();
+        }
+
+        $this->footerBufferStarted = false;
+    }
+
+    public function replaceFooterMarkupInBuffer(string $html): string
+    {
+        if ($html === '') {
+            return $html;
+        }
+
         $language = LanguageManager::getCurrentLanguage();
 
         if (LanguageManager::isDefault($language)) {
-            return null;
+            return $html;
         }
 
-        $postType = get_post_type($postId);
+        $replacementFooter = $this->getConfiguredFooterHtmlForLanguage($language);
 
-        if ($postType !== 'cms_block') {
-            return null;
+        if ($replacementFooter === null) {
+            return $html;
         }
 
-        $settings = get_option(self::SETTINGS_OPTION_KEY, []);
+        $replacementFooter = $this->renderTranslatableMarkup($replacementFooter);
 
-        if (!is_array($settings)) {
-            return null;
+        /**
+         * Primary target based on the DOM structure seen on the live site:
+         * <footer class="mce-footer"> ... </footer>
+         */
+        $pattern = '#<footer\b[^>]*class=(["\'])[^"\']*\bmce-footer\b[^"\']*\1[^>]*>.*?</footer>#is';
+
+        $result = preg_replace($pattern, $replacementFooter, $html, 1, $count);
+
+        if (is_string($result) && $count > 0) {
+            return $result;
         }
 
-        $footerBlockId = isset($settings['footer_block_id']) ? (int) $settings['footer_block_id'] : 0;
+        /**
+         * Fallback: replace the entire main footer container if needed.
+         */
+        $fallbackPattern = '#<div\b[^>]*class=(["\'])[^"\']*\bmain-footer\b[^"\']*\bwd-entry-content\b[^"\']*\1[^>]*>.*?</div>\s*</div>\s*</footer>#is';
+        $fallbackReplacement = '<div class="container main-footer wd-entry-content">' . $replacementFooter . '</div></footer>';
 
-        if ($footerBlockId <= 0 || $footerBlockId !== $postId) {
-            return null;
+        $fallbackResult = preg_replace($fallbackPattern, $fallbackReplacement, $html, 1, $fallbackCount);
+
+        if (is_string($fallbackResult) && $fallbackCount > 0) {
+            return $fallbackResult;
         }
 
-        $footerHtml = $settings['footer_html'] ?? [];
-
-        if (!is_array($footerHtml)) {
-            return null;
-        }
-
-        $value = $footerHtml[$language] ?? '';
-
-        if (!is_string($value)) {
-            return null;
-        }
-
-        $value = trim($value);
-
-        if ($value === '') {
-            return null;
-        }
-
-        return $value;
+        return $html;
     }
 
     private function getConfiguredFooterBlockId(): int
@@ -373,7 +349,7 @@ class ContentFilter
 
         $postType = get_post_type($postId);
 
-        return in_array($postType, ['page', 'post', 'product', 'cms_block'], true);
+        return in_array($postType, ['page', 'post', 'product'], true);
     }
 
     private function getTranslationForPost(int $postId): ?array
