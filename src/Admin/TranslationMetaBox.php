@@ -122,7 +122,11 @@ class TranslationMetaBox
             $firstPanel = false;
         }
 
-        echo '<input type="hidden" id="mce-multilang-payload" value="' . esc_attr(wp_json_encode($payloadForJs)) . '" />';
+        echo '<input type="hidden" 
+            id="mce-multilang-payload" 
+            name="' . esc_attr(self::REST_META_KEY) . '" 
+            value="' . esc_attr(wp_json_encode($payloadForJs)) . '" 
+        />';
         echo '</div>';
 
         ?>
@@ -184,16 +188,6 @@ class TranslationMetaBox
             wrapper.addEventListener('input', syncPayload);
             wrapper.addEventListener('change', syncPayload);
 
-            // 🔥 SAVE sırasında garanti sync
-            wp.data.subscribe(function () {
-                const isSaving = wp.data.select('core/editor').isSavingPost();
-                const isAutosaving = wp.data.select('core/editor').isAutosavingPost();
-
-                if (isSaving && !isAutosaving) {
-                    syncPayload();
-                }
-            });
-
             tabs.forEach(function (tab) {
                 tab.addEventListener('click', function () {
                     const lang = this.getAttribute('data-lang');
@@ -228,7 +222,9 @@ class TranslationMetaBox
 
     public function saveTranslations(int $postId): void
     {
-        if (!$this->canSave($postId, $_POST)) {
+        $requestData = $this->getRequestData();
+
+        if (!$this->canSave($postId, $requestData)) {
             return;
         }
 
@@ -238,7 +234,7 @@ class TranslationMetaBox
             return;
         }
 
-        $rawData = $this->extractRawData($_POST);
+        $rawData = $this->extractRawData($requestData);
         if (empty($rawData) || !is_array($rawData)) {
             return;
         }
@@ -297,7 +293,14 @@ class TranslationMetaBox
             return $requestData['mce_multilang'];
         }
 
-        // REST META'dan al
+        if (
+            isset($requestData[self::REST_META_KEY]) &&
+            is_string($requestData[self::REST_META_KEY])
+        ) {
+            $decoded = json_decode(wp_unslash($requestData[self::REST_META_KEY]), true);
+            return is_array($decoded) ? $decoded : null;
+        }
+
         if (
             isset($requestData['meta'][self::REST_META_KEY]) &&
             is_string($requestData['meta'][self::REST_META_KEY])
@@ -372,7 +375,7 @@ class TranslationMetaBox
             }
 
             if (isset($json['meta']) && is_array($json['meta'])) {
-                return $json['meta'];
+                return $json;
             }
         }
 
