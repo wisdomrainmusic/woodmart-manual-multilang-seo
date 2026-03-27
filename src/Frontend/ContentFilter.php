@@ -117,11 +117,11 @@ class ContentFilter
         }
 
         if (!empty($translation['custom_html'])) {
-            return (string) $translation['custom_html'];
+            return $this->renderTranslatableMarkup((string) $translation['custom_html']);
         }
 
         if (!empty($translation['translated_content'])) {
-            return (string) $translation['translated_content'];
+            return $this->renderTranslatableMarkup((string) $translation['translated_content']);
         }
 
         return $content;
@@ -167,10 +167,12 @@ class ContentFilter
         }
 
         if (!empty($translation['custom_html'])) {
-            return (string) $translation['custom_html'];
+            return $this->renderTranslatableMarkup((string) $translation['custom_html']);
         }
 
-        return !empty($translation['translated_content']) ? (string) $translation['translated_content'] : $description;
+        return !empty($translation['translated_content'])
+            ? $this->renderTranslatableMarkup((string) $translation['translated_content'])
+            : $description;
     }
 
     public function filterWooProductShortDescription(string $description, $product): string
@@ -192,6 +194,22 @@ class ContentFilter
         }
 
         return !empty($translation['translated_excerpt']) ? (string) $translation['translated_excerpt'] : $description;
+    }
+
+    private function renderTranslatableMarkup(string $markup): string
+    {
+        if ($markup == '') {
+            return $markup;
+        }
+
+        if (function_exists('do_blocks')) {
+            $markup = do_blocks($markup);
+        }
+
+        $markup = shortcode_unautop($markup);
+        $markup = do_shortcode($markup);
+
+        return $markup;
     }
 
     private function shouldFilterPost(int $postId): bool
