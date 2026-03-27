@@ -8,10 +8,18 @@ use WP;
 
 class Router
 {
+    private LocalizedUrlBuilder $urlBuilder;
+
+    public function __construct()
+    {
+        $this->urlBuilder = new LocalizedUrlBuilder();
+    }
+
     public function register(): void
     {
         add_action('init', [$this, 'registerRewriteRules']);
         add_action('parse_request', [$this, 'resolveTranslatedSlug'], 1);
+        add_action('template_redirect', [$this, 'redirectToOfficialLocalizedUrl'], 1);
         add_filter('query_vars', [$this, 'registerQueryVars']);
         add_filter('request', [$this, 'mapLanguageRequest']);
         add_filter('redirect_canonical', [$this, 'maybeDisableCanonicalRedirect'], 10, 2);
@@ -36,18 +44,76 @@ class Router
         }
 
         $language = get_query_var(Config::LANGUAGE_QUERY_VAR);
+        $hasPrefixedLanguageInRequest = false;
 
         if (is_string($language) && LanguageManager::isSupportedLanguage($language)) {
-            return false;
+            $hasPrefixedLanguageInRequest = !LanguageManager::isDefault($language);
         }
 
-        $requestUri = $_SERVER['REQUEST_URI'] ?? '';
+        if (!$hasPrefixedLanguageInRequest) {
+            $requestUri = $_SERVER['REQUEST_URI'] ?? '';
 
-        if (is_string($requestUri) && preg_match('#^/(' . Config::getLanguagePattern() . ')(/|$)#', $requestUri)) {
+            if (is_string($requestUri) && preg_match('#^/(' . Config::getLanguagePattern() . ')(/|$)#', $requestUri)) {
+                $hasPrefixedLanguageInRequest = true;
+            }
+        }
+
+        if (!$hasPrefixedLanguageInRequest) {
+            return $redirectUrl;
+        }
+
+        if (is_singular(['page', 'post', 'product']) || is_front_page()) {
             return false;
         }
 
         return $redirectUrl;
+    }
+
+    public function redirectToOfficialLocalizedUrl(): void
+    {
+        if (is_admin() || wp_doing_ajax() || (defined('REST_REQUEST') && REST_REQUEST)) {
+            return;
+        }
+
+        if (!is_singular(['page', 'post', 'product']) && !is_front_page()) {
+            return;
+        }
+
+        $language = LanguageManager::getCurrentLanguage();
+
+        if (!LanguageManager::isSupportedLanguage($language) || LanguageManager::isDefault($language)) {
+            return;
+        }
+
+        $objectId = get_queried_object_id();
+
+        if (!$objectId && is_front_page()) {
+            $objectId = (int) get_option('page_on_front');
+        }
+
+        if ($objectId <= 0) {
+            return;
+        }
+
+        $officialUrl = $this->urlBuilder->buildObjectUrl((int) $objectId, $language, false);
+
+        if ($officialUrl === '') {
+            return;
+        }
+
+        $officialPath = wp_parse_url($officialUrl, PHP_URL_PATH);
+        $requestPath = wp_parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+
+        if (!is_string($officialPath) || !is_string($requestPath)) {
+            return;
+        }
+
+        if (untrailingslashit($officialPath) === untrailingslashit($requestPath)) {
+            return;
+        }
+
+        wp_safe_redirect($officialUrl, 301, 'MCE Multilang Canonical');
+        exit;
     }
 
     public function registerQueryVars(array $queryVars): array

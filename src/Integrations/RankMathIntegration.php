@@ -3,26 +3,31 @@
 namespace MCE\Multilang\Integrations;
 
 use MCE\Multilang\Core\LanguageManager;
+use MCE\Multilang\Core\LocalizedUrlBuilder;
 use MCE\Multilang\DB\TranslationRepository;
 
 class RankMathIntegration
 {
     private TranslationRepository $repository;
+    private LocalizedUrlBuilder $urlBuilder;
 
     public function __construct(?TranslationRepository $repository = null)
     {
         $this->repository = $repository ?? new TranslationRepository();
+        $this->urlBuilder = new LocalizedUrlBuilder($this->repository);
     }
 
     public function register(): void
     {
         add_filter('rank_math/frontend/title', [$this, 'filterTitle']);
         add_filter('rank_math/frontend/description', [$this, 'filterDescription']);
+        add_filter('rank_math/frontend/canonical', [$this, 'filterCanonicalUrl']);
 
         // 🔥 SEO FIXES
         add_filter('rank_math/opengraph/url', [$this, 'filterOpenGraphUrl']);
         add_filter('rank_math/opengraph/facebook/locale', [$this, 'filterOpenGraphLocale']);
         add_filter('language_attributes', [$this, 'filterLanguageAttributes']);
+        add_filter('get_canonical_url', [$this, 'filterCanonicalUrl']);
     }
 
     public function filterTitle(string $title): string
@@ -66,9 +71,20 @@ class RankMathIntegration
             return $url;
         }
 
-        $currentUrl = $this->getCurrentRequestUrl();
+        $currentUrl = $this->getCurrentLocalizedUrl();
 
         return $currentUrl !== '' ? $currentUrl : $url;
+    }
+
+    public function filterCanonicalUrl(string $url): string
+    {
+        if (is_admin()) {
+            return $url;
+        }
+
+        $localizedUrl = $this->getCurrentLocalizedUrl();
+
+        return $localizedUrl !== '' ? $localizedUrl : $url;
     }
 
     // 🔥 OG LOCALE FIX (Facebook format: de_DE)
@@ -138,21 +154,17 @@ class RankMathIntegration
         return $map[$lang] ?? 'en_US';
     }
 
-    private function getCurrentRequestUrl(): string
+    private function getCurrentLocalizedUrl(): string
     {
-        global $wp;
+        $objectId = $this->resolveObjectId();
 
-        if (!is_object($wp)) {
+        if ($objectId <= 0) {
             return '';
         }
 
-        $request = isset($wp->request) ? trim((string) $wp->request, '/') : '';
+        $language = LanguageManager::getCurrentLanguage();
 
-        if ($request === '') {
-            return home_url('/');
-        }
-
-        return home_url('/' . user_trailingslashit($request));
+        return $this->urlBuilder->buildObjectUrl($objectId, $language, false);
     }
 
     private function getCurrentTranslation(): ?array

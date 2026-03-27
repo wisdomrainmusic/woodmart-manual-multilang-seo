@@ -3,15 +3,18 @@
 namespace MCE\Multilang\Frontend;
 
 use MCE\Multilang\Core\LanguageManager;
+use MCE\Multilang\Core\LocalizedUrlBuilder;
 use MCE\Multilang\DB\TranslationRepository;
 
 class MenuFilter
 {
     private TranslationRepository $repository;
+    private LocalizedUrlBuilder $urlBuilder;
 
     public function __construct(?TranslationRepository $repository = null)
     {
         $this->repository = $repository ?? new TranslationRepository();
+        $this->urlBuilder = new LocalizedUrlBuilder($this->repository);
     }
 
     public function register(): void
@@ -86,33 +89,21 @@ class MenuFilter
                 continue;
             }
 
-            $translation = $this->repository->getTranslation($objectId, $postType, $language);
-
             if ((int) get_option('page_on_front') === $objectId) {
                 $item->url = home_url('/' . $language . '/');
                 continue;
             }
 
-            $slug = '';
+            $localizedObjectUrl = $this->urlBuilder->buildObjectUrl($objectId, $language, false);
 
-            if ($translation && !empty($translation['translated_slug'])) {
-                $slug = (string) $translation['translated_slug'];
-            } else {
-                $post = get_post($objectId);
-
-                if (!$post) {
-                    continue;
-                }
-
-                $slug = $post->post_name;
-            }
-
-            if ($postType === 'product') {
-                $item->url = home_url('/' . $language . '/product/' . $slug . '/');
+            if ($localizedObjectUrl !== '') {
+                $item->url = $localizedObjectUrl;
                 continue;
             }
 
-            $item->url = home_url('/' . $language . '/' . $slug . '/');
+            if (!empty($item->url) && is_string($item->url)) {
+                $item->url = $this->localizeInternalUrl($item->url, $language);
+            }
         }
 
         return $items;
@@ -176,6 +167,26 @@ class MenuFilter
 
         $relativePath = LanguageManager::stripLanguagePrefix($relativePath);
         $relativePath = trim($relativePath, '/');
+
+        if ($relativePath !== '') {
+            $resolvedObjectId = url_to_postid(home_url('/' . $relativePath . '/'));
+
+            if ($resolvedObjectId > 0) {
+                $resolvedUrl = $this->urlBuilder->buildObjectUrl((int) $resolvedObjectId, $language, false);
+
+                if ($resolvedUrl !== '') {
+                    if (isset($parts['query']) && $parts['query'] !== '') {
+                        $resolvedUrl .= '?' . $parts['query'];
+                    }
+
+                    if (isset($parts['fragment']) && $parts['fragment'] !== '') {
+                        $resolvedUrl .= '#' . $parts['fragment'];
+                    }
+
+                    return $resolvedUrl;
+                }
+            }
+        }
 
         if ($relativePath === '') {
             $localizedUrl = home_url('/' . $language . '/');
