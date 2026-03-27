@@ -102,7 +102,7 @@ class SettingsPage {
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Woodmart Manual Multilang SEO', 'woodmart-manual-multilang-seo' ); ?></h1>
-			<p><?php esc_html_e( 'Map each language to a dedicated Woodmart HTML Block ID for the footer.', 'woodmart-manual-multilang-seo' ); ?></p>
+			<p><?php esc_html_e( 'Assign a dedicated Woodmart HTML Block ID for each translated footer.', 'woodmart-manual-multilang-seo' ); ?></p>
 
 			<form method="post" action="options.php">
 				<?php settings_fields( 'mce_multilang_settings_group' ); ?>
@@ -124,7 +124,7 @@ class SettingsPage {
 									step="1"
 								/>
 								<p class="description">
-									<?php esc_html_e( 'Enter the default English Woodmart HTML Block ID used by the footer.', 'woodmart-manual-multilang-seo' ); ?>
+									<?php esc_html_e( 'Enter the English/default footer HTML Block ID for reference.', 'woodmart-manual-multilang-seo' ); ?>
 								</p>
 							</td>
 						</tr>
@@ -132,7 +132,7 @@ class SettingsPage {
 				</table>
 
 				<hr />
-				<h2><?php esc_html_e( 'Per-Language Footer Block IDs', 'woodmart-manual-multilang-seo' ); ?></h2>
+				<h2><?php esc_html_e( 'Translated Footer Block IDs', 'woodmart-manual-multilang-seo' ); ?></h2>
 
 				<?php foreach ( $languages as $language ) : ?>
 					<?php $value = isset( $footerBlockIds[ $language ] ) ? (int) $footerBlockIds[ $language ] : 0; ?>
