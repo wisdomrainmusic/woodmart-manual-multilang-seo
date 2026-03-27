@@ -116,8 +116,14 @@ class ContentFilter
             return $content;
         }
 
+        $htmlBlockMarkup = $this->getWoodmartHtmlBlockMarkup($translation);
+
         if (!empty($translation['custom_html'])) {
             return $this->renderTranslatableMarkup((string) $translation['custom_html']);
+        }
+
+        if ($htmlBlockMarkup !== '') {
+            return $htmlBlockMarkup;
         }
 
         if (!empty($translation['translated_content'])) {
@@ -166,8 +172,14 @@ class ContentFilter
             return $description;
         }
 
+        $htmlBlockMarkup = $this->getWoodmartHtmlBlockMarkup($translation);
+
         if (!empty($translation['custom_html'])) {
             return $this->renderTranslatableMarkup((string) $translation['custom_html']);
+        }
+
+        if ($htmlBlockMarkup !== '') {
+            return $htmlBlockMarkup;
         }
 
         return !empty($translation['translated_content'])
@@ -198,8 +210,8 @@ class ContentFilter
 
     private function renderTranslatableMarkup(string $markup): string
     {
-        if ($markup == '') {
-            return $markup;
+        if ($markup === '') {
+            return '';
         }
 
         if (function_exists('do_blocks')) {
@@ -210,6 +222,82 @@ class ContentFilter
         $markup = do_shortcode($markup);
 
         return $markup;
+    }
+
+    private function getWoodmartHtmlBlockMarkup(array $translation): string
+    {
+        if (empty($translation['id'])) {
+            return '';
+        }
+
+        $blockRef = $this->repository->getTranslationMeta((int) $translation['id'], 'html_block_ref');
+
+        if (!is_string($blockRef) || trim($blockRef) === '') {
+            return '';
+        }
+
+        $blockPost = $this->resolveWoodmartHtmlBlock(trim($blockRef));
+
+        if (!$blockPost instanceof \WP_Post) {
+            return '';
+        }
+
+        $content = (string) $blockPost->post_content;
+
+        return $this->renderTranslatableMarkup($content);
+    }
+
+    private function resolveWoodmartHtmlBlock(string $blockRef): ?\WP_Post
+    {
+        $postTypes = [
+            'cms_block',
+            'html_block',
+            'woodmart_html_block',
+        ];
+
+        if (ctype_digit($blockRef)) {
+            $post = get_post((int) $blockRef);
+
+            if ($post instanceof \WP_Post && in_array($post->post_type, $postTypes, true)) {
+                return $post;
+            }
+        }
+
+        foreach ($postTypes as $postType) {
+            $posts = get_posts([
+                'post_type'              => $postType,
+                'name'                   => sanitize_title($blockRef),
+                'post_status'            => 'publish',
+                'posts_per_page'         => 1,
+                'no_found_rows'          => true,
+                'update_post_term_cache' => false,
+                'update_post_meta_cache' => false,
+                'suppress_filters'       => false,
+            ]);
+
+            if (!empty($posts[0]) && $posts[0] instanceof \WP_Post) {
+                return $posts[0];
+            }
+        }
+
+        foreach ($postTypes as $postType) {
+            $posts = get_posts([
+                'post_type'              => $postType,
+                'title'                  => $blockRef,
+                'post_status'            => 'publish',
+                'posts_per_page'         => 1,
+                'no_found_rows'          => true,
+                'update_post_term_cache' => false,
+                'update_post_meta_cache' => false,
+                'suppress_filters'       => false,
+            ]);
+
+            if (!empty($posts[0]) && $posts[0] instanceof \WP_Post) {
+                return $posts[0];
+            }
+        }
+
+        return null;
     }
 
     private function shouldFilterPost(int $postId): bool

@@ -75,6 +75,7 @@ class TranslationMetaBox
             $this->renderTextareaField($language, 'translated_content', 'Main Content', $translation['translated_content'] ?? '', 10);
             $this->renderTextField($language, 'seo_title', 'SEO Title', $translation['seo_title'] ?? '');
             $this->renderTextareaField($language, 'seo_description', 'Meta Description', $translation['seo_description'] ?? '', 3);
+            $this->renderTextField($language, 'html_block_ref', 'Woodmart HTML Block ID / Slug', $this->getTranslationMetaValue($translation, 'html_block_ref'));
             $this->renderTextareaField($language, 'custom_html', 'Custom HTML Override', $translation['custom_html'] ?? '', 12);
 
             echo '</div>';
@@ -159,10 +160,17 @@ class TranslationMetaBox
                 'status'             => 'active',
             ];
 
+            $translationId = 0;
+
             if ($existing && !empty($existing['id'])) {
                 $this->repository->updateTranslation((int) $existing['id'], $payload);
+                $translationId = (int) $existing['id'];
             } else {
-                $this->repository->saveTranslation($payload);
+                $translationId = $this->repository->saveTranslation($payload);
+            }
+
+            if ($translationId > 0) {
+                $this->saveTranslationMetaValue($translationId, 'html_block_ref', $data['html_block_ref']);
             }
         }
     }
@@ -197,6 +205,7 @@ class TranslationMetaBox
             'translated_content' => $this->getPostedValue($language, 'translated_content'),
             'seo_title'          => $this->getPostedValue($language, 'seo_title'),
             'seo_description'    => $this->getPostedValue($language, 'seo_description'),
+            'html_block_ref'     => $this->getPostedValue($language, 'html_block_ref'),
             'custom_html'        => $this->getPostedValue($language, 'custom_html'),
         ];
     }
@@ -237,5 +246,32 @@ class TranslationMetaBox
         echo '<label><strong>' . esc_html($label) . '</strong></label><br />';
         echo '<textarea style="width:100%;" rows="' . esc_attr((string) $rows) . '" name="mce_multilang[' . esc_attr($language) . '][' . esc_attr($field) . ']">' . esc_textarea($value) . '</textarea>';
         echo '</p>';
+    }
+
+    private function getTranslationMetaValue(?array $translation, string $metaKey): string
+    {
+        if (!$translation || empty($translation['id'])) {
+            return '';
+        }
+
+        $value = $this->repository->getTranslationMeta((int) $translation['id'], $metaKey);
+
+        return is_string($value) ? $value : '';
+    }
+
+    private function saveTranslationMetaValue(int $translationId, string $metaKey, string $metaValue): void
+    {
+        $metaValue = trim($metaValue);
+
+        if ($metaValue === '') {
+            $this->repository->deleteTranslationMeta($translationId, $metaKey);
+            return;
+        }
+
+        $this->repository->saveTranslationMeta(
+            $translationId,
+            $metaKey,
+            $metaValue
+        );
     }
 }
