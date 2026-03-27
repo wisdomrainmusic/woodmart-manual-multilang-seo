@@ -58,8 +58,8 @@ class SettingsPage {
 		$input = is_array( $input ) ? $input : array();
 
 		$clean = array(
-			'footer_block_id' => isset( $input['footer_block_id'] ) ? absint( $input['footer_block_id'] ) : 0,
-			'footer_html'     => array(),
+			'default_footer_block_id' => isset( $input['default_footer_block_id'] ) ? absint( $input['default_footer_block_id'] ) : 0,
+			'footer_block_ids'        => array(),
 		);
 
 		$languages = array_filter(
@@ -68,8 +68,7 @@ class SettingsPage {
 		);
 
 		foreach ( $languages as $language ) {
-			$value = $input['footer_html'][ $language ] ?? '';
-			$clean['footer_html'][ $language ] = is_string( $value ) ? wp_kses_post( wp_unslash( $value ) ) : '';
+			$clean['footer_block_ids'][ $language ] = isset( $input['footer_block_ids'][ $language ] ) ? absint( $input['footer_block_ids'][ $language ] ) : 0;
 		}
 
 		return $clean;
@@ -93,17 +92,17 @@ class SettingsPage {
 			return;
 		}
 
-		$settings      = $this->getSettings();
-		$footerBlockId = isset( $settings['footer_block_id'] ) ? (int) $settings['footer_block_id'] : 0;
-		$footerHtml    = isset( $settings['footer_html'] ) && is_array( $settings['footer_html'] ) ? $settings['footer_html'] : array();
-		$languages     = array_filter(
+		$settings             = $this->getSettings();
+		$defaultFooterBlockId = isset( $settings['default_footer_block_id'] ) ? (int) $settings['default_footer_block_id'] : 0;
+		$footerBlockIds       = isset( $settings['footer_block_ids'] ) && is_array( $settings['footer_block_ids'] ) ? $settings['footer_block_ids'] : array();
+		$languages            = array_filter(
 			LanguageManager::getSupportedLanguages(),
 			static fn( string $language ): bool => ! LanguageManager::isDefault( $language )
 		);
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Woodmart Manual Multilang SEO', 'woodmart-manual-multilang-seo' ); ?></h1>
-			<p><?php esc_html_e( 'Use this area for special overrides that are safer than editing Woodmart HTML Blocks directly.', 'woodmart-manual-multilang-seo' ); ?></p>
+			<p><?php esc_html_e( 'Map each language to a dedicated Woodmart HTML Block ID for the footer.', 'woodmart-manual-multilang-seo' ); ?></p>
 
 			<form method="post" action="options.php">
 				<?php settings_fields( 'mce_multilang_settings_group' ); ?>
@@ -112,20 +111,20 @@ class SettingsPage {
 					<tbody>
 						<tr>
 							<th scope="row">
-								<label for="mce-footer-block-id"><?php esc_html_e( 'Footer HTML Block ID', 'woodmart-manual-multilang-seo' ); ?></label>
+								<label for="mce-default-footer-block-id"><?php esc_html_e( 'Default Footer HTML Block ID', 'woodmart-manual-multilang-seo' ); ?></label>
 							</th>
 							<td>
 								<input
-									id="mce-footer-block-id"
-									name="<?php echo esc_attr( self::OPTION_KEY ); ?>[footer_block_id]"
+									id="mce-default-footer-block-id"
+									name="<?php echo esc_attr( self::OPTION_KEY ); ?>[default_footer_block_id]"
 									type="number"
 									class="regular-text"
-									value="<?php echo esc_attr( (string) $footerBlockId ); ?>"
+									value="<?php echo esc_attr( (string) $defaultFooterBlockId ); ?>"
 									min="0"
 									step="1"
 								/>
 								<p class="description">
-									<?php esc_html_e( 'Enter the Woodmart footer HTML Block post ID (cms_block). When this block is rendered on non-default languages, the translated footer HTML below will replace its content.', 'woodmart-manual-multilang-seo' ); ?>
+									<?php esc_html_e( 'Enter the default English Woodmart HTML Block ID used by the footer.', 'woodmart-manual-multilang-seo' ); ?>
 								</p>
 							</td>
 						</tr>
@@ -133,16 +132,22 @@ class SettingsPage {
 				</table>
 
 				<hr />
-				<h2><?php esc_html_e( 'Footer HTML Overrides', 'woodmart-manual-multilang-seo' ); ?></h2>
+				<h2><?php esc_html_e( 'Per-Language Footer Block IDs', 'woodmart-manual-multilang-seo' ); ?></h2>
 
 				<?php foreach ( $languages as $language ) : ?>
-					<?php $value = isset( $footerHtml[ $language ] ) && is_string( $footerHtml[ $language ] ) ? $footerHtml[ $language ] : ''; ?>
-					<h3 style="margin-top:24px;"><?php echo esc_html( strtoupper( $language ) ); ?></h3>
-					<textarea
-						name="<?php echo esc_attr( self::OPTION_KEY ); ?>[footer_html][<?php echo esc_attr( $language ); ?>]"
-						rows="12"
-						style="width:100%; font-family:monospace;"
-					><?php echo esc_textarea( $value ); ?></textarea>
+					<?php $value = isset( $footerBlockIds[ $language ] ) ? (int) $footerBlockIds[ $language ] : 0; ?>
+					<table class="form-table" role="presentation">
+						<tbody>
+							<tr>
+								<th scope="row">
+									<label for="mce-footer-block-id-<?php echo esc_attr( $language ); ?>"><?php echo esc_html( strtoupper( $language ) . ' Footer Block ID' ); ?></label>
+								</th>
+								<td>
+									<input id="mce-footer-block-id-<?php echo esc_attr( $language ); ?>" name="<?php echo esc_attr( self::OPTION_KEY ); ?>[footer_block_ids][<?php echo esc_attr( $language ); ?>]" type="number" class="regular-text" value="<?php echo esc_attr( (string) $value ); ?>" min="0" step="1" />
+								</td>
+							</tr>
+						</tbody>
+					</table>
 				<?php endforeach; ?>
 
 				<?php submit_button(); ?>
