@@ -9,6 +9,7 @@ class ContentFilter
 {
     private TranslationRepository $repository;
     private const SETTINGS_OPTION_KEY = 'mce_multilang_settings';
+    private bool $isReplacingFooterHtmlBlock = false;
 
     public function __construct(?TranslationRepository $repository = null)
     {
@@ -20,6 +21,7 @@ class ContentFilter
         add_filter('the_title', [$this, 'filterTitle'], 20, 2);
         add_filter('get_the_excerpt', [$this, 'filterExcerpt'], 20, 2);
         add_filter('the_content', [$this, 'filterContent'], 20);
+        add_filter('pre_do_shortcode_tag', [$this, 'interceptHtmlBlockShortcode'], 10, 4);
 
         add_filter('woocommerce_short_description', [$this, 'filterWooShortDescription'], 20);
         add_filter('woocommerce_product_get_description', [$this, 'filterWooProductDescription'], 20, 2);
@@ -109,12 +111,6 @@ class ContentFilter
 
         if ($postId <= 0 || !$this->shouldFilterPost($postId)) {
             return $content;
-        }
-
-        $footerOverride = $this->getFooterOverrideForPost($postId);
-
-        if ($footerOverride !== null) {
-            return $this->renderTranslatableMarkup($footerOverride);
         }
 
         $translation = $this->getTranslationForPost($postId);
@@ -219,6 +215,71 @@ class ContentFilter
         return $markup;
     }
 
+    /**
+     * Intercept Woodmart html_block shortcode output and replace it with the
+     * translated footer HTML when the configured footer block is requested.
+     *
+     * @param string|false $return
+     * @param string       $tag
+     * @param array        $attr
+     * @param array        $m
+     * @return string|false
+     */
+    public function interceptHtmlBlockShortcode($return, string $tag, array $attr, array $m)
+    {
+        if (is_admin()) {
+            return $return;
+        }
+
+        if ($tag !== 'html_block') {
+            return $return;
+        }
+
+        if ($this->isReplacingFooterHtmlBlock) {
+            return $return;
+        }
+
+        $footerOverride = $this->getFooterOverrideForShortcodeAttrs($attr);
+
+        if ($footerOverride === null) {
+            return $return;
+        }
+
+        $this->isReplacingFooterHtmlBlock = true;
+
+        try {
+            return $this->renderTranslatableMarkup($footerOverride);
+        } finally {
+            $this->isReplacingFooterHtmlBlock = false;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $attr
+     */
+    private function getFooterOverrideForShortcodeAttrs(array $attr): ?string
+    {
+        $language = LanguageManager::getCurrentLanguage();
+
+        if (LanguageManager::isDefault($language)) {
+            return null;
+        }
+
+        $shortcodeBlockId = isset($attr['id']) ? (int) $attr['id'] : 0;
+
+        if ($shortcodeBlockId <= 0) {
+            return null;
+        }
+
+        $settingsBlockId = $this->getConfiguredFooterBlockId();
+
+        if ($settingsBlockId <= 0 || $settingsBlockId !== $shortcodeBlockId) {
+            return null;
+        }
+
+        return $this->getConfiguredFooterHtmlForLanguage($language);
+    }
+
     private function getFooterOverrideForPost(int $postId): ?string
     {
         $language = LanguageManager::getCurrentLanguage();
@@ -264,6 +325,42 @@ class ContentFilter
         }
 
         return $value;
+    }
+
+    private function getConfiguredFooterBlockId(): int
+    {
+        $settings = get_option(self::SETTINGS_OPTION_KEY, []);
+
+        if (!is_array($settings)) {
+            return 0;
+        }
+
+        return isset($settings['footer_block_id']) ? (int) $settings['footer_block_id'] : 0;
+    }
+
+    private function getConfiguredFooterHtmlForLanguage(string $language): ?string
+    {
+        $settings = get_option(self::SETTINGS_OPTION_KEY, []);
+
+        if (!is_array($settings)) {
+            return null;
+        }
+
+        $footerHtml = $settings['footer_html'] ?? [];
+
+        if (!is_array($footerHtml)) {
+            return null;
+        }
+
+        $value = $footerHtml[$language] ?? '';
+
+        if (!is_string($value)) {
+            return null;
+        }
+
+        $value = trim($value);
+
+        return $value === '' ? null : $value;
     }
 
     private function shouldFilterPost(int $postId): bool
