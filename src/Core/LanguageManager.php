@@ -44,12 +44,6 @@ class LanguageManager
             return $requestLanguage;
         }
 
-        $cookieLanguage = self::getLanguageFromCookie();
-
-        if ($cookieLanguage !== null) {
-            return $cookieLanguage;
-        }
-
         return self::getDefaultLanguage();
     }
 
@@ -61,11 +55,16 @@ class LanguageManager
 
         $language = self::detectLanguageFromRequest();
 
-        if ($language === null) {
+        if ($language !== null) {
+            self::setLanguageCookie($language);
             return;
         }
 
-        self::setLanguageCookie($language);
+        /**
+         * Prefixsiz frontend URL'ler default language olarak kabul edilir.
+         * Böylece /trade-program/ gibi URL'lerde cookie eski dili dayatmaz.
+         */
+        self::setLanguageCookie(self::getDefaultLanguage());
     }
 
     public static function getPrefixedLanguages(): array
@@ -136,19 +135,6 @@ class LanguageManager
         return null;
     }
 
-    private static function getLanguageFromCookie(): ?string
-    {
-        $cookieName = Config::getLanguageCookieName();
-        $cookieValue = $_COOKIE[$cookieName] ?? '';
-
-        if (!is_string($cookieValue) || $cookieValue === '') {
-            return null;
-        }
-
-        $language = sanitize_key(wp_unslash($cookieValue));
-
-        return self::isSupportedLanguage($language) ? $language : null;
-    }
 
     private static function setLanguageCookie(string $language): void
     {
