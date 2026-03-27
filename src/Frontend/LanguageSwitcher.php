@@ -60,15 +60,32 @@ class LanguageSwitcher
         }
 
         if (!$objectId) {
-            return LanguageManager::isDefault($language) ? home_url('/') : home_url('/' . $language . '/');
+            $url = LanguageManager::isDefault($language)
+                ? home_url('/')
+                : home_url('/' . $language . '/');
+
+            return $this->appendLanguageQueryArgForDefault($url, $language);
         }
 
         $url = $this->urlBuilder->buildObjectUrl($objectId, $language, false);
 
         if ($url !== '') {
+            return $this->appendLanguageQueryArgForDefault($url, $language);
+        }
+
+        $fallbackUrl = LanguageManager::isDefault($language)
+            ? home_url('/')
+            : home_url('/' . $language . '/');
+
+        return $this->appendLanguageQueryArgForDefault($fallbackUrl, $language);
+    }
+
+    private function appendLanguageQueryArgForDefault(string $url, string $language): string
+    {
+        if (!LanguageManager::isDefault($language)) {
             return $url;
         }
 
-        return LanguageManager::isDefault($language) ? home_url('/') : home_url('/' . $language . '/');
+        return add_query_arg(Config::getLanguageQueryVar(), $language, $url);
     }
 }
