@@ -14,20 +14,6 @@ class ContentFilter
         $this->repository = $repository ?? new TranslationRepository();
     }
 
-    /**
-     * Supported translatable post types.
-     *
-     * Woodmart HTML Blocks are usually stored as "cms_block".
-     * "html_block" is included as a safe fallback for environments
-     * that register a custom HTML block post type differently.
-     *
-     * @return string[]
-     */
-    private function getSupportedPostTypes(): array
-    {
-        return ['page', 'post', 'product', 'cms_block', 'html_block'];
-    }
-
     public function register(): void
     {
         add_filter('the_title', [$this, 'filterTitle'], 20, 2);
@@ -114,7 +100,7 @@ class ContentFilter
 
     public function filterContent(string $content): string
     {
-        if (is_admin()) {
+        if (is_admin() || !is_singular()) {
             return $content;
         }
 
@@ -236,7 +222,7 @@ class ContentFilter
 
         $postType = get_post_type($postId);
 
-        return in_array($postType, $this->getSupportedPostTypes(), true);
+        return in_array($postType, ['page', 'post', 'product'], true);
     }
 
     private function getTranslationForPost(int $postId): ?array

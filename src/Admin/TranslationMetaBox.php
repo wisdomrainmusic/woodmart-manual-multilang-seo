@@ -17,19 +17,6 @@ class TranslationMetaBox
         $this->repository = $repository ?? new TranslationRepository();
     }
 
-    /**
-     * Supported translatable post types.
-     *
-     * Woodmart HTML Blocks generally use "cms_block".
-     * We also keep "html_block" here as a defensive fallback for custom setups.
-     *
-     * @return string[]
-     */
-    private function getSupportedPostTypes(): array
-    {
-        return ['page', 'post', 'product', 'cms_block', 'html_block'];
-    }
-
     public function register(): void
     {
         add_action('add_meta_boxes', [$this, 'registerMetaBox']);
@@ -38,7 +25,7 @@ class TranslationMetaBox
 
     public function registerMetaBox(): void
     {
-        foreach ($this->getSupportedPostTypes() as $postType) {
+        foreach (['page', 'post', 'product'] as $postType) {
             add_meta_box(
                 'mce-multilang-translations',
                 __('MCE Translations', 'woodmart-manual-multilang-seo'),
@@ -140,7 +127,7 @@ class TranslationMetaBox
 
         $postType = get_post_type($postId);
 
-        if (!in_array($postType, $this->getSupportedPostTypes(), true)) {
+        if (!in_array($postType, ['page', 'post', 'product'], true)) {
             return;
         }
 
