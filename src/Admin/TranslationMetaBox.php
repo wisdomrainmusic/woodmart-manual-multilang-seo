@@ -140,13 +140,36 @@ class TranslationMetaBox
             return;
         }
 
-        $languages = array_filter(
+        $rawData = $_POST['mce_multilang'] ?? null;
+
+        // Gutenberg / REST fallback.
+        if (!$rawData) {
+            $input = file_get_contents('php://input');
+
+            if ($input) {
+                $json = json_decode($input, true);
+
+                if (isset($json['meta']['mce_multilang'])) {
+                    $rawData = $json['meta']['mce_multilang'];
+                }
+            }
+        }
+
+        if (empty($rawData) || !is_array($rawData)) {
+            return;
+        }
+
+        $allowedLanguages = array_filter(
             LanguageManager::getSupportedLanguages(),
             static fn (string $language): bool => !LanguageManager::isDefault($language)
         );
 
-        foreach ($languages as $language) {
-            $data = $this->collectLanguageData($language);
+        foreach ($rawData as $language => $values) {
+            if (!is_string($language) || !in_array($language, $allowedLanguages, true) || !is_array($values)) {
+                continue;
+            }
+
+            $data = $this->collectLanguageData($values);
 
             if (!$this->hasAnyValue($data)) {
                 continue;
@@ -204,23 +227,23 @@ class TranslationMetaBox
         return true;
     }
 
-    private function collectLanguageData(string $language): array
+    private function collectLanguageData(array $languageData): array
     {
         return [
-            'translated_title'   => $this->getPostedValue($language, 'translated_title'),
-            'translated_slug'    => $this->getPostedValue($language, 'translated_slug'),
-            'translated_excerpt' => $this->getPostedValue($language, 'translated_excerpt'),
-            'translated_content' => $this->getPostedValue($language, 'translated_content'),
-            'seo_title'          => $this->getPostedValue($language, 'seo_title'),
-            'seo_description'    => $this->getPostedValue($language, 'seo_description'),
-            'html_block_ref'     => $this->getPostedValue($language, 'html_block_ref'),
-            'custom_html'        => $this->getPostedValue($language, 'custom_html'),
+            'translated_title'   => $this->getPostedValue($languageData, 'translated_title'),
+            'translated_slug'    => $this->getPostedValue($languageData, 'translated_slug'),
+            'translated_excerpt' => $this->getPostedValue($languageData, 'translated_excerpt'),
+            'translated_content' => $this->getPostedValue($languageData, 'translated_content'),
+            'seo_title'          => $this->getPostedValue($languageData, 'seo_title'),
+            'seo_description'    => $this->getPostedValue($languageData, 'seo_description'),
+            'html_block_ref'     => $this->getPostedValue($languageData, 'html_block_ref'),
+            'custom_html'        => $this->getPostedValue($languageData, 'custom_html'),
         ];
     }
 
-    private function getPostedValue(string $language, string $field): string
+    private function getPostedValue(array $languageData, string $field): string
     {
-        $value = $_POST['mce_multilang'][$language][$field] ?? '';
+        $value = $languageData[$field] ?? '';
 
         if (!is_string($value)) {
             return '';
