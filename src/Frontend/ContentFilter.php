@@ -118,12 +118,12 @@ class ContentFilter
 
         $htmlBlockMarkup = $this->getWoodmartHtmlBlockMarkup($translation);
 
-        if (!empty($translation['custom_html'])) {
-            return $this->renderTranslatableMarkup((string) $translation['custom_html']);
-        }
-
         if ($htmlBlockMarkup !== '') {
             return $htmlBlockMarkup;
+        }
+
+        if (!empty($translation['custom_html'])) {
+            return $this->renderTranslatableMarkup((string) $translation['custom_html']);
         }
 
         if (!empty($translation['translated_content'])) {
@@ -174,12 +174,12 @@ class ContentFilter
 
         $htmlBlockMarkup = $this->getWoodmartHtmlBlockMarkup($translation);
 
-        if (!empty($translation['custom_html'])) {
-            return $this->renderTranslatableMarkup((string) $translation['custom_html']);
-        }
-
         if ($htmlBlockMarkup !== '') {
             return $htmlBlockMarkup;
+        }
+
+        if (!empty($translation['custom_html'])) {
+            return $this->renderTranslatableMarkup((string) $translation['custom_html']);
         }
 
         return !empty($translation['translated_content'])
@@ -236,64 +236,94 @@ class ContentFilter
             return '';
         }
 
-        $blockPost = $this->resolveWoodmartHtmlBlock(trim($blockRef));
+        $parsedBlock = $this->normalizeWoodmartBlockReference(trim($blockRef));
+
+        if (empty($parsedBlock['id']) && empty($parsedBlock['slug'])) {
+            return '';
+        }
+
+        if (!empty($parsedBlock['id'])) {
+            return $this->renderTranslatableMarkup('[html_block id="' . (int) $parsedBlock['id'] . '"]');
+        }
+
+        $blockPost = $this->resolveWoodmartHtmlBlockBySlug((string) $parsedBlock['slug']);
 
         if (!$blockPost instanceof \WP_Post) {
             return '';
         }
 
-        $content = (string) $blockPost->post_content;
-
-        return $this->renderTranslatableMarkup($content);
+        return $this->renderTranslatableMarkup('[html_block id="' . (int) $blockPost->ID . '"]');
     }
 
-    private function resolveWoodmartHtmlBlock(string $blockRef): ?\WP_Post
+    private function normalizeWoodmartBlockReference(string $blockRef): array
     {
+        $blockRef = trim($blockRef);
+
+        if ($blockRef === '') {
+            return ['id' => 0, 'slug' => ''];
+        }
+
+        if (ctype_digit($blockRef)) {
+            return ['id' => (int) $blockRef, 'slug' => ''];
+        }
+
+        if (preg_match('/\[(?:html_block|woodmart_html_block)\s+[^\]]*id=["\']?(\d+)["\']?[^\]]*\]/i', $blockRef, $matches)) {
+            return ['id' => (int) $matches[1], 'slug' => ''];
+        }
+
+        if (preg_match('/\[(?:html_block|woodmart_html_block)\s+[^\]]*slug=["\']?([^"\']+)["\']?[^\]]*\]/i', $blockRef, $matches)) {
+            return ['id' => 0, 'slug' => sanitize_title($matches[1])];
+        }
+
+        return ['id' => 0, 'slug' => sanitize_title($blockRef)];
+    }
+
+    private function resolveWoodmartHtmlBlockBySlug(string $slug): ?\WP_Post
+    {
+        if ($slug === '') {
+            return null;
+        }
+
         $postTypes = [
             'cms_block',
             'html_block',
             'woodmart_html_block',
         ];
 
-        if (ctype_digit($blockRef)) {
-            $post = get_post((int) $blockRef);
+        foreach ($postTypes as $postType) {
+            $post = get_page_by_path($slug, OBJECT, $postType);
+
+            if ($post instanceof \WP_Post) {
+                return $post;
+            }
+        }
+
+        return null;
+    }
+
+    private function resolveWoodmartHtmlBlock(string $blockRef): ?\WP_Post
+    {
+        $parsedBlock = $this->normalizeWoodmartBlockReference($blockRef);
+
+        $postTypes = [
+            'cms_block',
+            'html_block',
+            'woodmart_html_block',
+        ];
+
+        if (!empty($parsedBlock['id'])) {
+            $post = get_post((int) $parsedBlock['id']);
 
             if ($post instanceof \WP_Post && in_array($post->post_type, $postTypes, true)) {
                 return $post;
             }
         }
 
-        foreach ($postTypes as $postType) {
-            $posts = get_posts([
-                'post_type'              => $postType,
-                'name'                   => sanitize_title($blockRef),
-                'post_status'            => 'publish',
-                'posts_per_page'         => 1,
-                'no_found_rows'          => true,
-                'update_post_term_cache' => false,
-                'update_post_meta_cache' => false,
-                'suppress_filters'       => false,
-            ]);
+        if (!empty($parsedBlock['slug'])) {
+            $post = $this->resolveWoodmartHtmlBlockBySlug((string) $parsedBlock['slug']);
 
-            if (!empty($posts[0]) && $posts[0] instanceof \WP_Post) {
-                return $posts[0];
-            }
-        }
-
-        foreach ($postTypes as $postType) {
-            $posts = get_posts([
-                'post_type'              => $postType,
-                'title'                  => $blockRef,
-                'post_status'            => 'publish',
-                'posts_per_page'         => 1,
-                'no_found_rows'          => true,
-                'update_post_term_cache' => false,
-                'update_post_meta_cache' => false,
-                'suppress_filters'       => false,
-            ]);
-
-            if (!empty($posts[0]) && $posts[0] instanceof \WP_Post) {
-                return $posts[0];
+            if ($post instanceof \WP_Post) {
+                return $post;
             }
         }
 
