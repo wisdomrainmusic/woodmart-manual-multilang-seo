@@ -62,7 +62,7 @@ class Router
             return $redirectUrl;
         }
 
-        if (is_singular(['page', 'post', 'product']) || is_front_page()) {
+        if (is_singular(['page', 'post', 'product']) || is_front_page() || is_home()) {
             return false;
         }
 
@@ -322,6 +322,30 @@ class Router
                 $post = get_post($objectId);
             } else {
                 $post = $this->findDefaultLanguageObject($translatedSlug, ['page', 'post']);
+            }
+
+            $postsPageId = (int) get_option('page_for_posts');
+
+            if ($post && $post->post_type === 'page' && $postsPageId > 0 && (int) $post->ID === $postsPageId) {
+                $wp->query_vars['page_id'] = $postsPageId;
+                $wp->query_vars['page'] = '';
+                $wp->query_vars['pagename'] = $post->post_name;
+                $wp->query_vars['error'] = '';
+
+                unset($wp->query_vars['p']);
+                unset($wp->query_vars['name']);
+                unset($wp->query_vars['post_type']);
+                unset($wp->query_vars['post_name']);
+                unset($wp->query_vars['attachment']);
+                unset($wp->query_vars['attachment_id']);
+                unset($wp->query_vars['category_name']);
+                unset($wp->query_vars['tag']);
+                unset($wp->query_vars['feed']);
+                unset($wp->query_vars['paged']);
+                unset($wp->query_vars['embed']);
+                unset($wp->query_vars[Config::TRANSLATED_PATH_QUERY_VAR]);
+
+                return;
             }
 
             if ($post && in_array($post->post_type, ['page', 'post'], true)) {
